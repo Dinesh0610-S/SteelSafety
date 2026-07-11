@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Camera, Video, VideoOff, ShieldAlert, ShieldCheck, RefreshCw } from 'lucide-react';
+import * as tf from '@tensorflow/tfjs';
+import * as cocoSsd from '@tensorflow-models/coco-ssd';
 
 export interface PPEViolationEvent {
   id: number;
@@ -32,6 +34,7 @@ export function CCTVPanel({ selectedZoneId, onLiveRiskUpdate, onPPEViolation, ac
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   
   const [streamActive, setStreamActive] = useState<boolean>(false);
+  const [model, setModel] = useState<cocoSsd.ObjectDetection | null>(null);
   const [modelLoaded, setModelLoaded] = useState<boolean>(false);
   const [loadingModel, setLoadingModel] = useState<boolean>(false);
   
@@ -57,40 +60,23 @@ export function CCTVPanel({ selectedZoneId, onLiveRiskUpdate, onPPEViolation, ac
   // Error / permission status
   const [permissionError, setPermissionError] = useState<string | null>(null);
 
-  // Load TensorFlow.js and Coco-SSD from CDN dynamically
+  // Load TensorFlow.js and Coco-SSD locally
   useEffect(() => {
     let isMounted = true;
-
-    const loadScript = (src: string): Promise<void> => {
-      return new Promise((resolve, reject) => {
-        const existing = document.querySelector(`script[src="${src}"]`);
-        if (existing) {
-          resolve();
-          return;
-        }
-        const script = document.createElement('script');
-        script.src = src;
-        script.onload = () => resolve();
-        script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
-        document.head.appendChild(script);
-      });
-    };
-
-    const initModels = async () => {
+    const initModel = async () => {
       if (loadingModel || modelLoaded) return;
       setLoadingModel(true);
       try {
-        if (!(window as any).tf) {
-          await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js");
-        }
-        if (!(window as any).cocoSsd) {
-          await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js");
-        }
+        await tf.ready();
+        const loadedModel = (window as any).mockCocoSsd 
+          ? await (window as any).mockCocoSsd.load()
+          : await cocoSsd.load();
         if (isMounted) {
+          setModel(loadedModel);
           setModelLoaded(true);
         }
       } catch (err) {
-        console.error("Could not load TensorFlow.js CDN scripts:", err);
+        console.error("Failed to load TensorFlow COCO-SSD model locally:", err);
       } finally {
         if (isMounted) {
           setLoadingModel(false);
@@ -98,7 +84,7 @@ export function CCTVPanel({ selectedZoneId, onLiveRiskUpdate, onPPEViolation, ac
       }
     };
 
-    initModels();
+    initModel();
 
     return () => {
       isMounted = false;
@@ -158,19 +144,14 @@ export function CCTVPanel({ selectedZoneId, onLiveRiskUpdate, onPPEViolation, ac
 
   // Run Coco-SSD model detection loop on video stream
   useEffect(() => {
-    if (!streamActive || !modelLoaded || !videoRef.current) return;
+    if (!streamActive || !modelLoaded || !videoRef.current || !model) return;
 
     let animationFrameId: number;
     let isRunning = true;
-    let net: any = null;
 
     const startDetection = async () => {
-      const coco = (window as any).cocoSsd;
-      if (!coco) return;
-      
       try {
         setDetecting(true);
-        net = await coco.load();
         
         const detectFrame = async () => {
           if (!isRunning || !videoRef.current || !canvasRef.current) return;
@@ -184,7 +165,7 @@ export function CCTVPanel({ selectedZoneId, onLiveRiskUpdate, onPPEViolation, ac
             canvas.height = video.videoHeight;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            const predictions = await net.detect(video);
+            const predictions = await model.detect(video);
             const people = predictions.filter((p: any) => p.class === 'person');
             const hasPerson = people.length > 0;
             setPersonDetected(hasPerson);
@@ -297,7 +278,7 @@ export function CCTVPanel({ selectedZoneId, onLiveRiskUpdate, onPPEViolation, ac
       setDetecting(false);
       cancelAnimationFrame(animationFrameId);
     };
-  }, [streamActive, modelLoaded, ppeCompliant]);
+  }, [streamActive, modelLoaded, ppeCompliant, model]);
 
   // Periodically send CCTV state to backend
   const sendStateToBackend = async (detected: boolean, compliant: boolean) => {
