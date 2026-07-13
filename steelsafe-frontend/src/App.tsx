@@ -551,7 +551,7 @@ function DashboardContent() {
       </div>
 
       {showBriefing && <ShiftBriefingModal onClose={() => setShowBriefing(false)} />}
-      {delayedShowEscalation && (
+      {delayedShowEscalation && primaryEscalation && (
         <UnifiedIncidentPanel
           zoneId={primaryEscalation.zoneId}
           zoneName={primaryEscalation.zoneName}
