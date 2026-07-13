@@ -23,6 +23,16 @@ export interface LivePrediction {
   label: string;
 }
 
+export interface TrackedPerson {
+  id: number;
+  bbox: [number, number, number, number];
+  score: number;
+  compliant: boolean;
+  consecutiveCount: number;
+  openViolationId: number | null;
+  framesSinceLastSeen: number;
+}
+
 interface CameraContextType {
   webcamActive: boolean;
   stream: MediaStream | null;
@@ -87,11 +97,13 @@ export const CameraProvider: React.FC<CameraProviderProps> = ({ children, onPPEV
   const [totalWorkersDetected, setTotalWorkersDetected] = useState(0);
   const [violationWorkersCount, setViolationWorkersCount] = useState(0);
   const [ppeCompliant, setPpeCompliant] = useState(true);
+  const ppeCompliantRef = useRef(true); // stable ref so inference loop reads latest without restart
   const [predictions, setPredictions] = useState<LivePrediction[]>([]);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const reportedWorkersRef = useRef<Set<number>>(new Set());
-  const stableComplianceRef = useRef<Record<number, { compliant: boolean; consecutiveCount: number }>>({});
+  const trackedPersonsRef = useRef<TrackedPerson[]>([]);
+  const nextTrackerIdRef = useRef<number>(1);
+  const onPPEViolationRef = useRef(onPPEViolation); // stable ref to callback
 
   const realCamZone = useMemo(() => {
     return activePlantId === 'plant_rolling_mill' ? 'zone_rhf' : 'zone_cob1';
@@ -153,19 +165,26 @@ export const CameraProvider: React.FC<CameraProviderProps> = ({ children, onPPEV
 
   // Reset temporal compliance smoothing on zone/plant switch
   useEffect(() => {
-    reportedWorkersRef.current.clear();
-    stableComplianceRef.current = {};
+    trackedPersonsRef.current = [];
+    nextTrackerIdRef.current = 1;
     setPredictions([]);
     setPersonDetected(false);
     setTotalWorkersDetected(0);
     setViolationWorkersCount(0);
   }, [realCamZone]);
 
-  // Clear smoothing when compliance toggle is toggled
+  // Keep refs in sync with latest state/prop values
   useEffect(() => {
-    reportedWorkersRef.current.clear();
-    stableComplianceRef.current = {};
+    ppeCompliantRef.current = ppeCompliant;
+    // Reset consecutive counts so the new state is evaluated fresh (no carry-over frames)
+    trackedPersonsRef.current.forEach(tr => {
+      tr.consecutiveCount = 0;
+    });
   }, [ppeCompliant]);
+
+  useEffect(() => {
+    onPPEViolationRef.current = onPPEViolation;
+  }, [onPPEViolation]);
 
   const startCamera = async () => {
     try {
@@ -191,8 +210,8 @@ export const CameraProvider: React.FC<CameraProviderProps> = ({ children, onPPEV
     setTotalWorkersDetected(0);
     setViolationWorkersCount(0);
     setPredictions([]);
-    reportedWorkersRef.current.clear();
-    stableComplianceRef.current = {};
+    trackedPersonsRef.current = [];
+    nextTrackerIdRef.current = 1;
 
     // Send inactive camera state to backend
     fetch('/api/v1/risk/camera/state', {
@@ -206,7 +225,9 @@ export const CameraProvider: React.FC<CameraProviderProps> = ({ children, onPPEV
     }).catch(() => {});
   };
 
-  const triggerViolation = async (idx: number, confidence: number) => {
+  const triggerViolation = async (tr: TrackedPerson, confidence: number) => {
+    // Guard: never fire a second open violation for a person that already has one
+    if (tr.openViolationId !== null) return;
     if (!activePlantId || !realCamZone) return;
     try {
       const response = await fetch('/api/v1/risk/ppe/violation', {
@@ -221,13 +242,33 @@ export const CameraProvider: React.FC<CameraProviderProps> = ({ children, onPPEV
           risk_score_at_time: 85.0,
         }),
       });
-      if (response.ok && onPPEViolation) {
+      if (response.ok) {
         const event = await response.json();
-        event.zone_name = `${event.zone_name} (Worker #${idx + 1})`;
-        onPPEViolation(event);
+        tr.openViolationId = event.id;
+        event.zone_name = `${event.zone_name} (Worker #${tr.id})`;
+        onPPEViolationRef.current?.(event);
       }
     } catch (err) {
       console.warn("Failed to trigger PPE violation:", err);
+    }
+  };
+
+  const resolveViolation = async (tr: TrackedPerson) => {
+    if (!tr.openViolationId) return;
+    const violationId = tr.openViolationId;
+    // Optimistically clear so no second resolve call races in
+    tr.openViolationId = null;
+    try {
+      const response = await fetch(`/api/v1/risk/ppe/violations/${violationId}/resolve`, {
+        method: 'POST',
+      });
+      if (response.ok) {
+        const event = await response.json();
+        event.zone_name = `${event.zone_name} (Worker #${tr.id})`;
+        onPPEViolationRef.current?.(event);
+      }
+    } catch (err) {
+      console.warn("Failed to resolve PPE violation:", err);
     }
   };
 
@@ -271,58 +312,133 @@ export const CameraProvider: React.FC<CameraProviderProps> = ({ children, onPPEV
       const hasPerson = people.length > 0;
       setPersonDetected(hasPerson);
 
-      const sortedPeople = [...people].sort((a: any, b: any) => a.bbox[0] - b.bbox[0]);
-      let violations = 0;
-
-      const livePredictions: LivePrediction[] = sortedPeople.map((p: any, idx: number) => {
-        const rawCompliant = config.enablePpe ? ppeCompliant : true;
-
-        if (!stableComplianceRef.current[idx]) {
-          stableComplianceRef.current[idx] = { compliant: rawCompliant, consecutiveCount: 0 };
-        }
-
+      // Process compliance transition helper
+      const processPersonCompliance = async (tr: TrackedPerson, currentScore: number) => {
+        // Read from ref so we always have the latest value without restarting the loop
+        const rawCompliant = config.enablePpe ? ppeCompliantRef.current : true;
         const delayFrames = Math.max(2, Math.round(config.alertDelay * 1.5));
-        const stable = stableComplianceRef.current[idx];
-        if (stable.compliant === rawCompliant) {
-          stable.consecutiveCount = 0;
+        
+        if (tr.compliant === rawCompliant) {
+          tr.consecutiveCount = 0;
         } else {
-          stable.consecutiveCount++;
-          if (stable.consecutiveCount >= delayFrames) {
-            stable.compliant = rawCompliant;
-            stable.consecutiveCount = 0;
+          tr.consecutiveCount++;
+          if (tr.consecutiveCount >= delayFrames) {
+            const oldCompliant = tr.compliant;
+            tr.compliant = rawCompliant;
+            tr.consecutiveCount = 0;
+
+            if (oldCompliant && !tr.compliant) {
+              // Compliant -> Non-compliant
+              await triggerViolation(tr, currentScore);
+            } else if (!oldCompliant && tr.compliant) {
+              // Non-compliant -> Compliant
+              await resolveViolation(tr);
+            }
           }
         }
+      };
 
-        const isCompliant = stable.compliant;
-        if (!isCompliant) {
+      // Multi-person proximity tracking
+      const currentTracked = trackedPersonsRef.current;
+      const detected = people.map((p: any) => {
+        const [x, y, w, h] = p.bbox;
+        return {
+          bbox: p.bbox as [number, number, number, number],
+          score: p.score,
+          centerX: x + w / 2,
+          centerY: y + h / 2,
+        };
+      });
+
+      // Compute pairwise distances between detected and tracked
+      const DISTANCE_THRESHOLD = 150;
+      const matches: Array<{ detIdx: number; trIdx: number; dist: number }> = [];
+
+      detected.forEach((det: any, detIdx: number) => {
+        currentTracked.forEach((tr, trIdx) => {
+          const [tx, ty, tw, th] = tr.bbox;
+          const tCenterX = tx + tw / 2;
+          const tCenterY = ty + th / 2;
+          const dist = Math.hypot(det.centerX - tCenterX, det.centerY - tCenterY);
+          if (dist < DISTANCE_THRESHOLD) {
+            matches.push({ detIdx, trIdx, dist });
+          }
+        });
+      });
+
+      // Greedy match
+      matches.sort((a, b) => a.dist - b.dist);
+      const matchedDets = new Set<number>();
+      const matchedTrs = new Set<number>();
+
+      matches.forEach(m => {
+        if (!matchedDets.has(m.detIdx) && !matchedTrs.has(m.trIdx)) {
+          matchedDets.add(m.detIdx);
+          matchedTrs.add(m.trIdx);
+
+          const det = detected[m.detIdx];
+          const tr = currentTracked[m.trIdx];
+          tr.bbox = det.bbox;
+          tr.score = det.score;
+          tr.framesSinceLastSeen = 0;
+        }
+      });
+
+      // Increment framesSinceLastSeen for unmatched tracked persons
+      currentTracked.forEach((tr, trIdx) => {
+        if (!matchedTrs.has(trIdx)) {
+          tr.framesSinceLastSeen++;
+        }
+      });
+
+      // Filter out stale tracked persons
+      trackedPersonsRef.current = currentTracked.filter(tr => tr.framesSinceLastSeen <= 30);
+
+      // Create new tracked persons for unmatched detections
+      detected.forEach((det: any, detIdx: number) => {
+        if (!matchedDets.has(detIdx)) {
+          const newId = nextTrackerIdRef.current++;
+          const tr: TrackedPerson = {
+            id: newId,
+            bbox: det.bbox,
+            score: det.score,
+            compliant: true, // assume compliant initially to let smoothing verify status
+            consecutiveCount: 0,
+            openViolationId: null,
+            framesSinceLastSeen: 0,
+          };
+          trackedPersonsRef.current.push(tr);
+        }
+      });
+
+      // Run compliance check for all currently visible tracked persons
+      let violations = 0;
+      const activeTracked = trackedPersonsRef.current.filter(tr => tr.framesSinceLastSeen === 0);
+
+      for (const tr of activeTracked) {
+        await processPersonCompliance(tr, tr.score);
+        if (!tr.compliant) {
           violations++;
-          if (!reportedWorkersRef.current.has(idx)) {
-            reportedWorkersRef.current.add(idx);
-            triggerViolation(idx, p.score);
-          }
         }
+      }
 
-        const scorePct = (p.score * 100).toFixed(0);
-        const label = isCompliant
-          ? `✓ Worker #${idx + 1}: Compliant (${scorePct}%)`
-          : `✗ Worker #${idx + 1}: Missing: Hard Hat (${scorePct}%)`;
+      const livePredictions: LivePrediction[] = activeTracked.map((tr) => {
+        const scorePct = (tr.score * 100).toFixed(0);
+        const label = tr.compliant
+          ? `✓ Worker #${tr.id}: Compliant (${scorePct}%)`
+          : `✗ Worker #${tr.id}: Missing: Hard Hat (${scorePct}%)`;
 
         return {
-          bbox: p.bbox,
-          score: p.score,
-          isCompliant,
+          bbox: tr.bbox,
+          score: tr.score,
+          isCompliant: tr.compliant,
           label,
         };
       });
 
-      setTotalWorkersDetected(sortedPeople.length);
+      setTotalWorkersDetected(activeTracked.length);
       setViolationWorkersCount(violations);
       setPredictions(livePredictions);
-
-      if (sortedPeople.length === 0) {
-        reportedWorkersRef.current.clear();
-        stableComplianceRef.current = {};
-      }
 
       // CCTV state heartbeat updates risk engine
       const nowMs = Date.now();
@@ -351,7 +467,9 @@ export const CameraProvider: React.FC<CameraProviderProps> = ({ children, onPPEV
       setDetecting(false);
       cancelAnimationFrame(animationFrameId);
     };
-  }, [webcamActive, modelLoaded, ppeCompliant, model, stream, realCamZone]);
+  // ppeCompliant intentionally NOT in deps — we read it via ppeCompliantRef.current
+  // to avoid restarting the loop (and losing tracking state) on every toggle
+  }, [webcamActive, modelLoaded, model, stream, realCamZone]);
 
   return (
     <CameraContext.Provider

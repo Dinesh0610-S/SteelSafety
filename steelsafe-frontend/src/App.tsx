@@ -146,9 +146,30 @@ function DashboardContent() {
   }, [fetchViolations]);
 
   const handlePPEViolation = useCallback((event: PPEViolationEvent) => {
-    setPpeViolations(prev => [event, ...prev]);
-    setPpeOpenCount(c => c + 1);
+    setPpeViolations(prev => {
+      const idx = prev.findIndex(v => v.id === event.id);
+      if (idx !== -1) {
+        // Update in-place — adjust counter only if status actually changed
+        const old = prev[idx];
+        if (old.status !== event.status) {
+          if (event.status === 'resolved' || event.status === 'acknowledged') {
+            setPpeOpenCount(c => Math.max(0, c - 1));
+          } else if (event.status === 'open') {
+            setPpeOpenCount(c => c + 1);
+          }
+        }
+        const updated = [...prev];
+        updated[idx] = event;
+        return updated;
+      }
+      // Brand-new event
+      if (event.status === 'open') {
+        setPpeOpenCount(c => c + 1);
+      }
+      return [event, ...prev];
+    });
   }, []);
+
 
   const handleSelectZone = (zoneId: string | null) => {
     setSelectedZoneId(zoneId);
