@@ -74,11 +74,11 @@ function GaugeCard({ title, percent, icon: Icon, color = 'stroke-emerald-500', i
   const strokeDashoffset = circumference - (percent / 100) * circumference;
 
   return (
-    <div className="bg-[#111622]/60 border border-[#1f293d] p-4 rounded-2xl flex flex-col gap-3 flex-1 min-w-[160px] shadow-sm relative group">
+    <div className="bg-theme-card border border-theme-border p-4 rounded-2xl flex flex-col gap-3 flex-1 min-w-[160px] shadow-sm relative group">
       <div className="flex items-center justify-between">
-        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{title}</span>
+        <span className="text-[9px] font-black text-theme-text-muted uppercase tracking-widest">{title}</span>
         {isAudit && (
-          <span className="text-[7px] font-mono font-bold text-slate-500 px-1 border border-slate-800 rounded bg-slate-900/40">AUDIT</span>
+          <span className="text-[7px] font-mono font-bold text-theme-text-muted px-1 border border-theme-border rounded bg-theme-bg-alt/40">AUDIT</span>
         )}
       </div>
       <div className="flex items-center gap-4 mt-0.5">
@@ -88,7 +88,7 @@ function GaugeCard({ title, percent, icon: Icon, color = 'stroke-emerald-500', i
               cx="24"
               cy="24"
               r={radius}
-              className="stroke-[#161c28] fill-transparent"
+              className="stroke-theme-well fill-transparent"
               strokeWidth={strokeWidth}
             />
             <circle
@@ -102,13 +102,13 @@ function GaugeCard({ title, percent, icon: Icon, color = 'stroke-emerald-500', i
               strokeLinecap="round"
             />
           </svg>
-          <div className="z-10 text-slate-200">
+          <div className="z-10 text-theme-text-secondary">
             <Icon className="h-4.5 w-4.5" />
           </div>
         </div>
         <div className="flex flex-col justify-center">
-          <span className="text-xl font-black text-white leading-none">{percent}%</span>
-          <span className="text-[7.5px] font-bold text-slate-500 uppercase mt-1">Status: Active</span>
+          <span className="text-xl font-black text-theme-text leading-none">{percent}%</span>
+          <span className="text-[7.5px] font-bold text-theme-text-muted uppercase mt-1">Status: Active</span>
         </div>
       </div>
     </div>
@@ -233,20 +233,20 @@ export function PPEComplianceView({
   }, []);
 
   return (
-    <div id="ppe-compliance-container" className="flex flex-col gap-6 w-full text-slate-100">
+    <div id="ppe-compliance-container" className="flex flex-col gap-6 w-full text-theme-text">
       
       {/* Header Panel */}
       <div className="flex items-center justify-between">
         <div className="flex flex-col leading-tight">
-          <h2 className="text-xl font-black tracking-tight text-white m-0">3. PPE COMPLIANCE</h2>
-          <p className="text-[11px] text-slate-400 font-bold mt-1.5">Track and monitor personal protective equipment usage</p>
+          <h2 className="text-xl font-black tracking-tight text-theme-text m-0">3. PPE COMPLIANCE</h2>
+          <p className="text-[11px] text-theme-text-muted font-bold mt-1.5">Track and monitor personal protective equipment usage</p>
         </div>
 
         <div className="flex items-center gap-3">
           {/* Refresh button */}
           <button
             onClick={onRefresh}
-            className="p-2 rounded-xl border border-slate-700 bg-transparent hover:bg-slate-800 text-slate-300 hover:text-white transition-all shadow-sm"
+            className="p-2 rounded-xl border border-theme-border bg-theme-bg-alt hover:bg-theme-card-hover text-theme-text-secondary hover:text-theme-text transition-all shadow-sm"
             title="Refresh statistics"
           >
             <RefreshCw className="h-4 w-4" />
@@ -267,13 +267,13 @@ export function PPEComplianceView({
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-stretch">
         
         {/* Left Column: Worker Compliance Table */}
-        <div className="xl:col-span-2 bg-[#111622] border border-[#1f293d] rounded-3xl p-5 flex flex-col gap-4 shadow-md">
-          <h3 className="text-xs uppercase font-extrabold tracking-widest text-slate-400">Worker Compliance</h3>
+        <div className="xl:col-span-2 bg-theme-card border border-theme-border rounded-3xl p-5 flex flex-col gap-4 shadow-md">
+          <h3 className="text-xs uppercase font-extrabold tracking-widest text-theme-text-muted">Worker Compliance</h3>
           
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-[#1f293d] bg-[#141c2d]/50 text-slate-400 text-[10px] font-extrabold uppercase tracking-wider">
+                <tr className="border-b border-theme-border bg-theme-bg-alt/50 text-theme-text-muted text-[10px] font-extrabold uppercase tracking-wider">
                   <th className="px-5 py-3">Worker</th>
                   <th className="px-5 py-3">Department</th>
                   <th className="px-5 py-3 text-center">Current PPE</th>
@@ -282,21 +282,21 @@ export function PPEComplianceView({
                   <th className="px-5 py-3 text-center">Compliance</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60">
+              <tbody className="divide-y divide-theme-border/60">
                 {workerComplianceList.map((worker) => (
-                  <tr key={worker.name} className="hover:bg-[#141b2c]/40 transition-colors text-xs font-semibold text-white">
+                  <tr key={worker.name} className="hover:bg-theme-card-hover/40 transition-colors text-xs font-semibold text-theme-text">
                     {/* Worker Avatar & Name */}
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2">
-                        <div className="h-6 w-6 rounded-full bg-slate-800 flex items-center justify-center shrink-0 border border-slate-700">
-                          <User className="h-3 w-3 text-slate-400" />
+                        <div className="h-6 w-6 rounded-full bg-theme-bg-alt flex items-center justify-center shrink-0 border border-theme-border">
+                          <User className="h-3 w-3 text-theme-text-muted" />
                         </div>
-                        <span className="text-white font-bold">{worker.name}</span>
+                        <span className="text-theme-text font-bold">{worker.name}</span>
                       </div>
                     </td>
 
                     {/* Department */}
-                    <td className="px-5 py-3 text-slate-300">{worker.dept}</td>
+                    <td className="px-5 py-3 text-theme-text-secondary">{worker.dept}</td>
 
                     {/* 5 PPE compliance status icons */}
                     <td className="px-5 py-3">
@@ -327,7 +327,7 @@ export function PPEComplianceView({
                     {/* Missing PPE label */}
                     <td className="px-5 py-3">
                       {worker.missing === '-' ? (
-                        <span className="text-slate-500 font-normal">-</span>
+                        <span className="text-theme-text-muted font-normal">-</span>
                       ) : (
                         <span className="text-red-400 font-bold font-mono text-[10px] uppercase">
                           {worker.missing}
@@ -336,7 +336,7 @@ export function PPEComplianceView({
                     </td>
 
                     {/* Last Seen time */}
-                    <td className="px-5 py-3 font-mono text-slate-400">{worker.time}</td>
+                    <td className="px-5 py-3 font-mono text-theme-text-muted">{worker.time}</td>
 
                     {/* Compliance badge */}
                     <td className="px-5 py-3 text-center">
@@ -355,18 +355,18 @@ export function PPEComplianceView({
         </div>
 
         {/* Right Column: Compliance Trend Chart */}
-        <div className="bg-[#111622] border border-[#1f293d] rounded-3xl p-5 flex flex-col gap-4 shadow-md">
+        <div className="bg-theme-card border border-theme-border rounded-3xl p-5 flex flex-col gap-4 shadow-md">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs uppercase font-extrabold tracking-widest text-slate-400">Compliance Trend</h3>
+            <h3 className="text-xs uppercase font-extrabold tracking-widest text-theme-text-muted">Compliance Trend</h3>
             
             {/* Daily/Weekly/Monthly Toggle buttons */}
-            <div className="flex items-center gap-1 bg-[#151d30] border border-[#25324c] p-0.5 rounded-xl">
+            <div className="flex items-center gap-1 bg-theme-bg-alt border border-theme-border p-0.5 rounded-xl">
               {(['Daily', 'Weekly', 'Monthly'] as const).map(range => (
                 <button
                   key={range}
                   onClick={() => setTrendRange(range)}
                   className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
-                    trendRange === range ? 'bg-emerald-500 text-black' : 'text-slate-400 hover:text-white'
+                    trendRange === range ? 'bg-emerald-500 text-black' : 'text-theme-text-muted hover:text-theme-text'
                   }`}
                 >
                   {range}
@@ -376,15 +376,15 @@ export function PPEComplianceView({
           </div>
 
           <div className="flex-1 w-full h-[180px] mt-1 relative">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height={180}>
               <LineChart data={trendChartData} margin={{ top: 10, right: 5, left: -25, bottom: 0 }}>
-                <XAxis dataKey="date" stroke="#475569" fontSize={8} tickLine={false} axisLine={false} />
-                <YAxis domain={[0, 100]} stroke="#475569" fontSize={8} tickLine={false} axisLine={false} />
+                <XAxis dataKey="date" stroke="var(--theme-text-muted)" fontSize={8} tickLine={false} axisLine={false} />
+                <YAxis domain={[0, 100]} stroke="var(--theme-text-muted)" fontSize={8} tickLine={false} axisLine={false} />
                 <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', fontSize: '9px', color: '#fff' }} />
                 <Line type="monotone" dataKey="Rate" stroke="#10b981" strokeWidth={2.5} dot={{ r: 3, fill: '#10b981' }} activeDot={{ r: 5 }} />
               </LineChart>
             </ResponsiveContainer>
-            <div className="absolute right-2 top-2 bg-[#10b981]/10 border border-[#10b981]/25 px-2 py-0.5 rounded-lg text-[9px] font-mono font-black text-emerald-400">
+            <div className="absolute right-2 top-2 bg-theme-risk-low-bg border border-theme-risk-low-border/25 px-2 py-0.5 rounded-lg text-[9px] font-mono font-black text-theme-risk-low-text">
               Avg: 82%
             </div>
           </div>
@@ -393,15 +393,15 @@ export function PPEComplianceView({
       </div>
 
       {/* Bottom Row: Recent Violations Snapshots */}
-      <div className="bg-[#111622] border border-[#1f293d] rounded-3xl p-5 flex flex-col gap-4 shadow-md">
-        <h3 className="text-xs uppercase font-extrabold tracking-widest text-slate-400">Recent Violations</h3>
+      <div className="bg-theme-card border border-theme-border rounded-3xl p-5 flex flex-col gap-4 shadow-md">
+        <h3 className="text-xs uppercase font-extrabold tracking-widest text-theme-text-muted">Recent Violations</h3>
         
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {recentViolations.map((viol, index) => (
-            <div key={index} className="bg-[#151d30] border border-[#25324c] rounded-2xl overflow-hidden shadow-sm relative group flex flex-col">
+            <div key={index} className="bg-theme-bg-alt border border-theme-border rounded-2xl overflow-hidden shadow-sm relative group flex flex-col">
               
               {/* Card Photo overlay */}
-              <div className="relative aspect-video w-full bg-slate-950 flex items-center justify-center overflow-hidden border-b border-[#25324c]/60">
+              <div className="relative aspect-video w-full bg-theme-well flex items-center justify-center overflow-hidden border-b border-theme-border">
                 {/* Simulated background grids / security layout */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/20 z-10" />
                 <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-900/10 via-slate-950/80 to-slate-950 z-0" />
@@ -416,20 +416,20 @@ export function PPEComplianceView({
                   </span>
                 </div>
 
-                <span className="text-[9px] font-mono font-bold text-slate-500 z-10 uppercase tracking-widest">
+                <span className="text-[9px] font-mono font-bold text-theme-text-muted z-10 uppercase tracking-widest">
                   Live Stream Snapshot
                 </span>
               </div>
 
               {/* Card Body details */}
-              <div className="p-3 flex flex-col gap-1.5 bg-[#111622]/40 z-10">
+              <div className="p-3 flex flex-col gap-1.5 bg-theme-card/40 z-10">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-black text-white">{viol.worker}</span>
+                  <span className="text-xs font-black text-theme-text">{viol.worker}</span>
                   <span className={`inline-flex px-1.5 py-0.5 rounded text-[8px] font-black font-mono border ${viol.color}`}>
                     {viol.type}
                   </span>
                 </div>
-                <div className="flex items-center justify-between text-[9px] font-mono text-slate-500">
+                <div className="flex items-center justify-between text-[9px] font-mono text-theme-text-muted">
                   <span>Camera: {viol.cam}</span>
                   <span>Time: {viol.time}</span>
                 </div>
