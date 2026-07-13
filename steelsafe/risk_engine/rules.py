@@ -94,9 +94,9 @@ def evaluate_R1(ctx: RiskContext) -> RuleResult:
     h2s_slope = _compute_h2s_slope(ctx)
     has_hotwork = any(p.permit_type == "hot_work" for p in ctx.active_permits)
 
-    # Trend is only significant if the current gas level is also somewhat elevated above normal baseline
-    co_elevated_above_normal = ctx.current_reading.co_ppm > (ctx.zone_co_mean + 1.0 * ctx.zone_co_std)
-    h2s_elevated_above_normal = ctx.current_reading.h2s_ppm > (ctx.zone_h2s_mean + 1.0 * ctx.zone_h2s_std)
+    # Trend is only significant if the current gas level is also elevated above action levels
+    co_elevated_above_normal = ctx.current_reading.co_ppm >= T.CO_SECONDARY_PPM
+    h2s_elevated_above_normal = ctx.current_reading.h2s_ppm >= T.H2S_SECONDARY_PPM
 
     gas_rising = (
         (co_slope >= T.CO_TREND_THRESHOLD_PPM_PER_SAMPLE and co_elevated_above_normal) or

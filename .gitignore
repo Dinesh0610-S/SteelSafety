@@ -19,6 +19,9 @@ venv/
 .venv/
 env/
 .env/
+.env
+.env.*
+*.env
 
 # SQLite databases
 *.db

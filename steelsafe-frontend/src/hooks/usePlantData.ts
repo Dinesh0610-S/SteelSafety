@@ -7,6 +7,7 @@ export interface RiskStatus {
   triggered_rules: string | null;
   explanation: string;
   timestamp: string;
+  signal_snapshot?: string | null;
 }
 
 export interface CostImpact {

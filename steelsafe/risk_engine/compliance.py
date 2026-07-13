@@ -279,7 +279,7 @@ def run_compliance_check(db: Session, current_time: datetime, plant_config: dict
 
             if days_since_exam > 365:
                 zone_name = zone_names.get(zone_id, zone_id)
-                dev_type = "Overdue Periodic Medical Examination"
+                dev_type = f"{worker_name} ({worker_id}): Overdue Periodic Medical Examination"
                 desc = (
                     f"Technician {worker_name} ({worker_id}) is active in hazardous zone {zone_name} but "
                     f"has an overdue Periodic Medical Examination (last exam: {exam_date_str}, "

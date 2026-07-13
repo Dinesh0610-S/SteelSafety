@@ -11,6 +11,22 @@ Run with:
     uvicorn main:app --reload --port 8000
 """
 
+import os
+
+# Load .env variables manually to be zero-dependency and cross-platform
+for env_dir in [os.path.dirname(os.path.abspath(__file__)), os.path.expanduser("~")]:
+    env_file = os.path.join(env_dir, ".env")
+    if os.path.exists(env_file):
+        try:
+            with open(env_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        os.environ[k.strip()] = v.strip()
+        except Exception as e:
+            print(f"[Startup] Failed loading .env from {env_file}: {e}")
+
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

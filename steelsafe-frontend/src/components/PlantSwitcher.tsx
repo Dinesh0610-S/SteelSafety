@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { usePlant } from '../context/PlantContext';
-import { Factory, ChevronDown } from 'lucide-react';
+import { BarChart3, ChevronDown } from 'lucide-react';
 
 interface PlantSwitcherProps {
   onSwitch?: () => void;
@@ -24,13 +24,13 @@ export const PlantSwitcher: React.FC<PlantSwitcherProps> = ({ onSwitch }) => {
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2.5 bg-theme-card hover:bg-theme-card-hover border border-theme-border px-4 py-2.5 rounded-2xl text-xs font-bold font-mono tracking-tight text-theme-text transition-all shadow-sm active:scale-[0.98]"
+        className="flex items-center gap-2 bg-[#1b2234] hover:bg-[#242f47] border border-slate-800 px-3.5 py-2.5 rounded-2xl text-xs font-bold tracking-tight text-white transition-all shadow-sm active:scale-[0.98]"
       >
-        <Factory className="h-4 w-4 text-theme-accent" />
-        <span className="max-w-[200px] truncate">
+        <BarChart3 className="h-4 w-4 text-emerald-400" />
+        <span className="max-w-[200px] truncate font-mono">
           {activePlant ? activePlant.name : 'Select Plant'}
         </span>
-        <ChevronDown className="h-3 w-3 text-theme-text-muted transition-transform duration-200" style={{ transform: isOpen ? 'rotate(180deg)' : 'none' }} />
+        <ChevronDown className="h-3 w-3 text-slate-400 transition-transform duration-200" style={{ transform: isOpen ? 'rotate(180deg)' : 'none' }} />
       </button>
 
       {isOpen && (

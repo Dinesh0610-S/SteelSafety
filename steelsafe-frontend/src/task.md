@@ -1,0 +1,22 @@
+# Tasks - Phase 13A Dashboard Visual Replication
+
+- [ ] Rebuild Left Sidebar & Top Header in `App.tsx` to match the layout and colors exactly
+  - [ ] App logo branding: "SafeAI" two-color wordmark (white + green accent) with tagline "Zero-Harm Operations"
+  - [ ] Spacing, margins, and active navigation highlight
+  - [ ] Date/time placement with calendar/clock icons directly below top header row
+- [ ] Build Out Live Monitoring CCTV Grid in `DashboardShell.tsx`
+  - [ ] 3x2 grid of rounded-corner cards
+  - [ ] Add scanline, gridlines, and green "live" blinking dot
+  - [ ] Overlay camera label top-left, colored status badge top-right (e.g. SAFE, NO VEST)
+  - [ ] Render bounding box outlines on mock image streams based on actual active zones telemetry
+- [ ] Rebuild Recent Alerts Panel in `DashboardShell.tsx`
+  - [ ] Right-aligned sidebar with icon/severity color matches
+  - [ ] Wire to actual backend telemetry alerts (Raj, Priya, Arun simulated alerts dynamically mapping to zones)
+- [ ] Build Three Recharts Analytics Charts in `DashboardShell.tsx`
+  - [ ] PPE Compliance Trend: Area/line chart with area glow, dots at data points, and percentage badge
+  - [ ] Alerts by Type: Donut chart with total count text in center and legend list
+  - [ ] Risk Level Distribution: Donut chart with Segment colors (green/orange/red) representing low/medium/high
+- [ ] Build Recent Activity Log Feed in `DashboardShell.tsx`
+  - [ ] Bottom full-width marquee activity ticker
+- [ ] Verify Production Build & Hot Reload
+  - [ ] Run `npm run build` to ensure type-safe code compiles successfully

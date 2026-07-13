@@ -16,6 +16,20 @@ import math
 import json
 import requests
 from typing import List, Dict, Any, Optional
+
+# Load .env variables manually to be zero-dependency and cross-platform
+for env_dir in [os.path.dirname(os.path.dirname(os.path.abspath(__file__))), os.path.expanduser("~")]:
+    env_file = os.path.join(env_dir, ".env")
+    if os.path.exists(env_file):
+        try:
+            with open(env_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        os.environ[k.strip()] = v.strip()
+        except Exception as e:
+            print(f"[RAG] Failed loading .env from {env_file}: {e}")
 from db.database import SessionLocal
 from db.models import SensorReading, Permit, WorkerLocation, RiskAssessment
 from risk_engine import thresholds as T
@@ -221,8 +235,7 @@ def _generate_gemini_api_answer(
     zone_snapshot: Dict[str, Any], 
     api_key: str
 ) -> Dict[str, Any]:
-    """Hits the Google Gemini 1.5 Flash REST API to answer query using injected contexts."""
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    """Hits the Google Gemini REST API (trying gemini-3.1-flash-lite then gemini-3.5-flash) to answer query."""
     headers = {"Content-Type": "application/json"}
     
     context_blocks = []
@@ -251,22 +264,29 @@ def _generate_gemini_api_answer(
         }]
     }
 
-    try:
-        response = requests.post(url, headers=headers, json=data, timeout=10)
-        if response.status_code == 200:
-            res_json = response.json()
-            answer = res_json['candidates'][0]['content']['parts'][0]['text'].strip()
-            return {
-                "answer": answer,
-                "citations": passages,
-                "zone_snapshot": zone_snapshot
-            }
-        else:
-            print(f"[RAG] Gemini API returned error {response.status_code}: {response.text}")
-    except Exception as e:
-        print(f"[RAG] Failed Gemini API call: {e}")
+    # Try gemini-3.1-flash-lite first (highest availability), then fallback to gemini-3.5-flash
+    models = ["gemini-3.1-flash-lite", "gemini-3.5-flash"]
+    for model in models:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+        try:
+            print(f"[RAG] Attempting answer generation with {model}...")
+            response = requests.post(url, headers=headers, json=data, timeout=10)
+            if response.status_code == 200:
+                res_json = response.json()
+                answer = res_json['candidates'][0]['content']['parts'][0]['text'].strip()
+                print(f"[RAG] Successfully generated answer using {model}.")
+                return {
+                    "answer": answer,
+                    "citations": passages,
+                    "zone_snapshot": zone_snapshot
+                }
+            else:
+                print(f"[RAG] {model} returned status {response.status_code}: {response.text}")
+        except Exception as e:
+            print(f"[RAG] Failed call for {model}: {e}")
 
-    # If API call fails, fall back to local expert system
+    # If all API calls fail, fall back to local expert system
+    print("[RAG] All Gemini API models failed/timed out. Falling back to local expert answer.")
     return _generate_local_expert_answer(query, passages, zone_snapshot)
 
 def _generate_local_expert_answer(
