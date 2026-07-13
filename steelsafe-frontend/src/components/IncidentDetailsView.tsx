@@ -10,7 +10,15 @@ interface IncidentDetailsViewProps {
 }
 
 export function IncidentDetailsView({ alert, onBack, onResolve }: IncidentDetailsViewProps) {
-  const [status, setStatus] = useState(alert.status);
+  // Normalize status to capitalize first letter regardless of source format
+  const normalizeStatus = (s: string) => {
+    if (!s) return 'Open';
+    const lower = s.toLowerCase();
+    if (lower === 'resolved') return 'Resolved';
+    if (lower === 'acknowledged') return 'Acknowledged';
+    return 'Open';
+  };
+  const [status, setStatus] = useState(() => normalizeStatus(alert.status));
   const [notes, setNotes] = useState('');
   
   const label = alert.alertType || alert.label || 'Safety Deviation';
@@ -43,8 +51,12 @@ export function IncidentDetailsView({ alert, onBack, onResolve }: IncidentDetail
     window.dispatchEvent(new Event('steelsafe_alert_updated'));
   };
 
-  const handleMarkResolved = () => {
-    onResolve(alert.rawId || alert.id);
+  const handleMarkResolved = async () => {
+    try {
+      await onResolve(alert.rawId || alert.id);
+    } catch (err) {
+      console.warn('Failed to resolve:', err);
+    }
     setStatus('Resolved');
     // Save to local storage sync
     localStorage.setItem(`steelsafe_resolved_${alert.id}`, 'true');
@@ -334,7 +346,7 @@ Report generated on: ${new Date().toLocaleString()}
               Download Evidence
             </button>
 
-            {status === 'Open' && (
+            {status !== 'Resolved' && (
               <button
                 onClick={handleMarkResolved}
                 className="flex items-center gap-1.5 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-black rounded-xl transition-all shadow-md cursor-pointer"
@@ -342,6 +354,12 @@ Report generated on: ${new Date().toLocaleString()}
                 <CheckCircle className="h-4.5 w-4.5" />
                 Mark Resolved
               </button>
+            )}
+            {status === 'Resolved' && (
+              <div className="flex items-center gap-1.5 px-5 py-2.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-black rounded-xl">
+                <CheckCircle className="h-4.5 w-4.5" />
+                Resolved
+              </div>
             )}
           </div>
         </div>

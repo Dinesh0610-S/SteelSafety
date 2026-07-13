@@ -304,15 +304,16 @@ export function MainOfficePanel({
       if (selectedAlert.source === 'ppe') {
         await onAcknowledge(selectedAlert.rawId);
       } else if (selectedAlert.source === 'deviation') {
-        // mock/resolve deviation acknowledge
+        // deviation acknowledge
       }
-      setSelectedAlert((prev: any) => prev ? { ...prev, status: 'Resolved' } : null);
+      // Update panel status in-place — do NOT close panel so user sees confirmation
+      setSelectedAlert((prev: any) => prev ? { ...prev, status: 'Acknowledged', statusRaw: 'acknowledged' } : null);
       onRefresh();
     } catch (err) {
       console.warn("Failed to acknowledge alert:", err);
     } finally {
       setActionInProgress(false);
-      setSelectedAlert(null);
+      // Note: intentionally NOT calling setSelectedAlert(null) here
     }
   };
 
@@ -324,14 +325,17 @@ export function MainOfficePanel({
         await onResolve(selectedAlert.rawId);
       } else if (selectedAlert.source === 'deviation') {
         await fetch(`/api/v1/risk/compliance/deviations/${selectedAlert.rawId}/resolve`, { method: 'POST' });
+      } else if (selectedAlert.source === 'mock') {
+        // mock alerts: local-only status update
       }
-      setSelectedAlert((prev: any) => prev ? { ...prev, status: 'Resolved' } : null);
+      // Update panel status in-place — keep panel open so user sees 'Resolved' confirmation
+      setSelectedAlert((prev: any) => prev ? { ...prev, status: 'Resolved', statusRaw: 'resolved' } : null);
       onRefresh();
     } catch (err) {
       console.warn("Failed to resolve alert:", err);
     } finally {
       setActionInProgress(false);
-      setSelectedAlert(null);
+      // Note: intentionally NOT calling setSelectedAlert(null) here
     }
   };
 
@@ -732,9 +736,9 @@ export function MainOfficePanel({
                 Close
               </button>
 
-              {selectedAlert.status === 'Open' && selectedAlert.source !== 'mock' && (
+              {selectedAlert.statusRaw !== 'resolved' && selectedAlert.status !== 'Resolved' && (
                 <>
-                  {selectedAlert.statusRaw === 'open' && (
+                  {(selectedAlert.statusRaw === 'open') && selectedAlert.source !== 'mock' && (
                     <button
                       onClick={handleAcknowledgeAlert}
                       disabled={actionInProgress}
@@ -751,6 +755,13 @@ export function MainOfficePanel({
                     {actionInProgress ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : 'Mark Resolved'}
                   </button>
                 </>
+              )}
+
+              {(selectedAlert.statusRaw === 'resolved' || selectedAlert.status === 'Resolved') && (
+                <div className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-wider">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Resolved
+                </div>
               )}
             </div>
           </div>
