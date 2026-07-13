@@ -21,7 +21,7 @@ GET  /api/v1/risk/rules
 """
 
 from fastapi import APIRouter, Depends, Query, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, defer
 from sqlalchemy import func
 from datetime import datetime
 from typing import List, Optional
@@ -114,22 +114,37 @@ def get_risk_history(
     Populate this table by running POST /admin/regenerate, which triggers
     a full timeline sweep and stores results.
     """
-    query = (
-        db.query(RiskAssessment)
+    # Query only lightweight columns to optimize speed and payload size
+    assessments = (
+        db.query(
+            RiskAssessment.id,
+            RiskAssessment.plant_id,
+            RiskAssessment.zone_id,
+            RiskAssessment.timestamp,
+            RiskAssessment.risk_score,
+            RiskAssessment.risk_level,
+            RiskAssessment.triggered_rules,
+            RiskAssessment.anomaly_flagged,
+            RiskAssessment.anomaly_zscore,
+        )
         .filter(RiskAssessment.plant_id == plant_id)
-        .order_by(RiskAssessment.zone_id, RiskAssessment.timestamp)
     )
 
     if zone_id:
-        query = query.filter(RiskAssessment.zone_id == zone_id)
+        assessments = assessments.filter(RiskAssessment.zone_id == zone_id)
     if risk_level:
-        query = query.filter(RiskAssessment.risk_level == risk_level)
+        assessments = assessments.filter(RiskAssessment.risk_level == risk_level)
     if start:
-        query = query.filter(RiskAssessment.timestamp >= start)
+        assessments = assessments.filter(RiskAssessment.timestamp >= start)
     if end:
-        query = query.filter(RiskAssessment.timestamp <= end)
+        assessments = assessments.filter(RiskAssessment.timestamp <= end)
 
-    results = query.offset(offset).limit(limit).all()
+    results = (
+        assessments.order_by(RiskAssessment.zone_id, RiskAssessment.timestamp)
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
 
     if not results:
         raise HTTPException(
@@ -139,7 +154,25 @@ def get_risk_history(
                 "Run POST /api/v1/admin/regenerate to populate risk history."
             ),
         )
-    return results
+
+    # Return structured lightweight responses
+    return [
+        RiskAssessmentResponse(
+            id=r.id,
+            plant_id=r.plant_id,
+            zone_id=r.zone_id,
+            timestamp=r.timestamp,
+            risk_score=r.risk_score,
+            risk_level=r.risk_level,
+            triggered_rules=r.triggered_rules,
+            anomaly_flagged=r.anomaly_flagged,
+            anomaly_zscore=r.anomaly_zscore,
+            explanation="",
+            signal_snapshot=None,
+            cost_impact=None,
+        )
+        for r in results
+    ]
 
 
 @router.get(

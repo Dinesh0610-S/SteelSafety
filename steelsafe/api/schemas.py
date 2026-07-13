@@ -173,7 +173,7 @@ class RiskAssessmentResponse(BaseModel):
     triggered_rules: Optional[str] = None   # comma-separated rule IDs, e.g. "R1,R5"
     anomaly_flagged: bool
     anomaly_zscore:  Optional[float] = None
-    explanation:     str
+    explanation:     Optional[str] = None
     signal_snapshot: Optional[str] = None   # JSON string — parse client-side
     cost_impact:     Optional[Dict[str, Any]] = None
 
