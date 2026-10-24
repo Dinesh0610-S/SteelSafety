@@ -71,6 +71,7 @@ class RiskContext:
     # Phase 7C: Live CCTV camera signals
     cctv_person_detected: bool = False
     cctv_ppe_compliant: bool = True
+    cctv_ppe_items_missing: List[str] = field(default_factory=list)
 
 
 def build_context(zone_id: str, timestamp: datetime, db: Session) -> RiskContext:
@@ -218,12 +219,14 @@ def build_context(zone_id: str, timestamp: datetime, db: Session) -> RiskContext
     # ---- Phase 7C: Live CCTV camera signals ---------------------------------
     cctv_person = False
     cctv_ppe = True
+    cctv_ppe_items_missing = []
     from risk_engine.cctv_state import LIVE_CCTV_STATE
     if LIVE_CCTV_STATE["zone_id"] == zone_id and LIVE_CCTV_STATE["timestamp"] is not None:
         time_diff = (datetime.now() - LIVE_CCTV_STATE["timestamp"]).total_seconds()
         if abs(time_diff) < 15.0:
             cctv_person = LIVE_CCTV_STATE["person_detected"]
             cctv_ppe = LIVE_CCTV_STATE["ppe_compliant"]
+            cctv_ppe_items_missing = LIVE_CCTV_STATE.get("ppe_items_missing", [])
 
     return RiskContext(
         plant_id         = plant_id,
@@ -251,4 +254,5 @@ def build_context(zone_id: str, timestamp: datetime, db: Session) -> RiskContext
         fatigue_worker_count = worker_count,
         cctv_person_detected = cctv_person,
         cctv_ppe_compliant   = cctv_ppe,
+        cctv_ppe_items_missing = cctv_ppe_items_missing,
     )

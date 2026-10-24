@@ -65,9 +65,10 @@ interface GaugeCardProps {
   icon: any;
   color?: string;
   isAudit?: boolean;
+  isBeta?: boolean;
 }
 
-function GaugeCard({ title, percent, icon: Icon, color = 'stroke-emerald-500', isAudit = false }: GaugeCardProps) {
+function GaugeCard({ title, percent, icon: Icon, color = 'stroke-emerald-500', isAudit = false, isBeta = false }: GaugeCardProps) {
   const radius = 22;
   const strokeWidth = 4;
   const circumference = 2 * Math.PI * radius;
@@ -76,7 +77,9 @@ function GaugeCard({ title, percent, icon: Icon, color = 'stroke-emerald-500', i
   return (
     <div className="bg-theme-card border border-theme-border p-4 rounded-2xl flex flex-col gap-3 flex-1 min-w-[160px] shadow-sm relative group">
       <div className="flex items-center justify-between">
-        <span className="text-[9px] font-black text-theme-text-muted uppercase tracking-widest">{title}</span>
+        <span className="text-[9px] font-black text-theme-text-muted uppercase tracking-widest">
+          {title} {isBeta && <span className="text-[8px] text-theme-accent font-semibold lowercase tracking-normal font-sans">(beta)</span>}
+        </span>
         {isAudit && (
           <span className="text-[7px] font-mono font-bold text-theme-text-muted px-1 border border-theme-border rounded bg-theme-bg-alt/40">AUDIT</span>
         )}
@@ -123,9 +126,11 @@ export function PPEComplianceView({
 
   // Compute dynamic gauge compliance percentages based on current violations
   const dynamicMetrics = useMemo(() => {
-    // Check missing items counts
     let missingHelmets = 0;
     let missingVests = 0;
+    let missingShoes = 0;
+    let missingGloves = 0;
+    let missingMasks = 0;
 
     violations.forEach(v => {
       if (v.status === 'open') {
@@ -135,26 +140,35 @@ export function PPEComplianceView({
         if (v.ppe_items_missing.includes('safety_vest') || v.ppe_items_missing.includes('vest')) {
           missingVests++;
         }
+        if (v.ppe_items_missing.includes('safety_shoes') || v.ppe_items_missing.includes('shoes')) {
+          missingShoes++;
+        }
+        if (v.ppe_items_missing.includes('gloves')) {
+          missingGloves++;
+        }
+        if (v.ppe_items_missing.includes('mask')) {
+          missingMasks++;
+        }
       }
     });
 
-    // Helmet: 95% baseline, decreases with active violations
     const helmetVal = Math.max(70, 95 - missingHelmets * 5);
-    // Vest: 92% baseline, decreases with active violations
     const vestVal = Math.max(70, 92 - missingVests * 4);
+    const shoesVal = Math.max(70, 96 - missingShoes * 5);
+    const glovesVal = Math.max(70, 89 - missingGloves * 6);
+    const maskVal = Math.max(70, 90 - missingMasks * 4);
 
     return {
       helmet: helmetVal,
       vest: vestVal,
-      shoes: 96,
-      gloves: 89,
-      mask: 90
+      shoes: shoesVal,
+      gloves: glovesVal,
+      mask: maskVal
     };
   }, [violations]);
 
   // Worker Compliance Grid List
   const workerComplianceList = useMemo(() => {
-    // Mapped worker list
     const workers = [
       { name: 'Raj', dept: 'Assembly Line', helmet: true, vest: true, shoes: true, gloves: true, mask: true, missing: '-', time: '10:30 AM', comp: 98 },
       { name: 'Priya', dept: 'Robot Zone', helmet: true, vest: true, shoes: true, gloves: false, mask: true, missing: 'Gloves', time: '10:29 AM', comp: 82 },
@@ -163,27 +177,42 @@ export function PPEComplianceView({
       { name: 'Mohan', dept: 'Boiler Room', helmet: true, vest: true, shoes: true, gloves: true, mask: false, missing: 'Mask', time: '10:26 AM', comp: 83 }
     ];
 
-    // If there are real-time violations in the queue, dynamic override for the matching workers
     violations.forEach(v => {
       if (v.status === 'open') {
         const isHelmet = v.ppe_items_missing.includes('hard_hat') || v.ppe_items_missing.includes('helmet');
         const isVest = v.ppe_items_missing.includes('safety_vest') || v.ppe_items_missing.includes('vest');
+        const isShoes = v.ppe_items_missing.includes('safety_shoes') || v.ppe_items_missing.includes('shoes');
+        const isGloves = v.ppe_items_missing.includes('gloves');
+        const isMask = v.ppe_items_missing.includes('mask');
 
-        if (isHelmet) {
-          // Find Arun or update him
-          const target = workers.find(w => w.name === 'Arun');
-          if (target) {
-            target.helmet = false;
-            target.missing = 'Helmet';
-            target.comp = 81;
-          }
+        let workerIndex = -1;
+        const match = v.zone_name.match(/Worker #(\d+)/);
+        if (match) {
+          workerIndex = parseInt(match[1]) - 1;
         }
-        if (isVest) {
-          const target = workers.find(w => w.name === 'Karan');
-          if (target) {
-            target.vest = false;
-            target.missing = 'Vest';
-            target.comp = 81;
+
+        let target = null;
+        if (workerIndex >= 0 && workerIndex < workers.length) {
+          target = workers[workerIndex];
+        } else {
+          if (isHelmet) target = workers.find(w => w.name === 'Arun');
+          else if (isVest) target = workers.find(w => w.name === 'Karan');
+          else if (isShoes) target = workers.find(w => w.name === 'Priya');
+          else if (isGloves) target = workers.find(w => w.name === 'Priya');
+          else if (isMask) target = workers.find(w => w.name === 'Mohan');
+        }
+
+        if (target) {
+          const missing: string[] = [];
+          if (isHelmet) { target.helmet = false; missing.push('Helmet'); }
+          if (isVest) { target.vest = false; missing.push('Vest'); }
+          if (isShoes) { target.shoes = false; missing.push('Shoes (beta)'); }
+          if (isGloves) { target.gloves = false; missing.push('Gloves (beta)'); }
+          if (isMask) { target.mask = false; missing.push('Mask (beta)'); }
+
+          if (missing.length > 0) {
+            target.missing = missing.join(', ');
+            target.comp = Math.max(50, 100 - missing.length * 15);
           }
         }
       }
@@ -225,10 +254,10 @@ export function PPEComplianceView({
   // Recent Violations card images / badges mapping
   const recentViolations = useMemo(() => {
     return [
-      { worker: 'Arun', cam: 'CAM 03', time: '10:28 AM', type: 'No Helmet', color: 'border-red-500/80 text-red-400' },
-      { worker: 'Karan', cam: 'CAM 04', time: '10:27 AM', type: 'No Vest', color: 'border-red-500/80 text-red-400' },
+      { worker: 'Arun', cam: 'CAM 01', time: '10:28 AM', type: 'No Helmet', color: 'border-red-500/80 text-red-400' },
+      { worker: 'Karan', cam: 'CAM 02', time: '10:27 AM', type: 'No Vest', color: 'border-red-500/80 text-red-400' },
       { worker: 'Priya', cam: 'CAM 02', time: '10:29 AM', type: 'No Gloves', color: 'border-amber-500/80 text-amber-400' },
-      { worker: 'Mohan', cam: 'CAM 05', time: '10:26 AM', type: 'No Mask', color: 'border-amber-500/80 text-amber-400' }
+      { worker: 'Mohan', cam: 'CAM 01', time: '10:26 AM', type: 'No Vest', color: 'border-amber-500/80 text-amber-400' }
     ];
   }, []);
 
@@ -258,9 +287,9 @@ export function PPEComplianceView({
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <GaugeCard title="Helmet Compliance" percent={dynamicMetrics.helmet} icon={HelmetIcon} color="stroke-emerald-500" />
         <GaugeCard title="Vest Compliance" percent={dynamicMetrics.vest} icon={VestIcon} color="stroke-emerald-500" />
-        <GaugeCard title="Safety Shoes" percent={dynamicMetrics.shoes} icon={BootIcon} color="stroke-emerald-500" isAudit />
-        <GaugeCard title="Gloves Compliance" percent={dynamicMetrics.gloves} icon={GlovesIcon} color="stroke-emerald-500" isAudit />
-        <GaugeCard title="Mask Compliance" percent={dynamicMetrics.mask} icon={MaskIcon} color="stroke-emerald-500" isAudit />
+        <GaugeCard title="Safety Shoes" percent={dynamicMetrics.shoes} icon={BootIcon} color="stroke-emerald-500" isAudit isBeta />
+        <GaugeCard title="Gloves Compliance" percent={dynamicMetrics.gloves} icon={GlovesIcon} color="stroke-emerald-500" isAudit isBeta />
+        <GaugeCard title="Mask Compliance" percent={dynamicMetrics.mask} icon={MaskIcon} color="stroke-emerald-500" isAudit isBeta />
       </div>
 
       {/* Middle row: Table + Trend Chart */}

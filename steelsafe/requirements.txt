@@ -4,3 +4,9 @@ sqlalchemy>=2.0.0
 pydantic>=2.0.0
 numpy>=1.26.0
 requests>=2.31.0
+# PPE detection pipeline dependencies (no fine-tuning; pretrained models only)
+ultralytics>=8.3.0        # YOLOv8/YOLOv11 person + PPE detection + YOLO-World zero-shot
+shapely>=2.0.0            # polygon zone membership tests
+supervision>=0.22.0       # optional: PolygonZone helper (shapely is primary)
+opencv-python>=4.8.0      # frame decoding and crop preparation
+anthropic>=0.34.0         # optional VLM fallback — only called if USE_VLM_FALLBACK=True

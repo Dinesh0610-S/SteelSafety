@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   ShieldAlert, RefreshCw, Search, ChevronDown, Download, Flame, AlertCircle, ShieldCheck
 } from 'lucide-react';
@@ -12,7 +12,7 @@ interface MainOfficePanelProps {
   violations: PPEViolationEvent[];
   deviations: ComplianceDeviation[];
   onAcknowledge: (id: number) => Promise<void>;
-  onResolve: (id: number) => Promise<void>;
+  onResolve: (id: any, source: string) => Promise<void>;
   onRefresh: () => void;
   onSelectAlert?: (alert: any) => void;
 }
@@ -33,36 +33,25 @@ interface ComplianceDeviation {
 }
 
 const CAMERA_MAP: Record<string, string> = {
+  "CAM01": "CAM 01",
+  "CAM02": "CAM 02",
+  "CAM03": "CAM 03",
   "zone_cob1": "CAM 01",
-  "zone_gcm": "CAM 02",
-  "zone_qt": "CAM 03",
-  "zone_ca": "CAM 04",
-  "zone_cr": "CAM 05",
-  "zone_rhf": "CAM 01",
-  "zone_rs": "CAM 02",
-  "zone_cb": "CAM 03",
-  "zone_fl": "CAM 04",
-  "zone_cr2": "CAM 05",
+  "zone_ca": "CAM 02",
+  "zone_gcm": "CAM 03",
 };
 
 const ZONE_NAME_MAP: Record<string, string> = {
-  // Coke Oven Battery (plant_a)
-  "zone_cob1": "Coke Oven Battery 1",
-  "zone_gcm": "Gas Collection Main",
-  "zone_qt": "Quenching Tower",
-  "zone_ca": "Charging Area",
-  "zone_cr": "Control Room",
-  // Rolling Mill Complex (plant_b)
-  "zone_rhf": "Reheating Furnace",
-  "zone_rs": "Rolling Stand",
-  "zone_cb": "Cooling Bed",
-  "zone_fl": "Finishing Line",
-  "zone_cr2": "Mill Control Room",
+  "CAM01": "Coke Oven Battery",
+  "CAM02": "Blast Furnace Zone",
+  "CAM03": "Gas Cleaning Plant",
+  "zone_cob1": "Coke Oven Battery",
+  "zone_ca": "Blast Furnace Zone",
+  "zone_gcm": "Gas Cleaning Plant",
 };
 
 export function MainOfficePanel({
   violations,
-  deviations,
   onAcknowledge,
   onResolve,
   onRefresh,
@@ -78,6 +67,11 @@ export function MainOfficePanel({
   // Selected Alert Modal Detail state
   const [selectedAlert, setSelectedAlert] = useState<any | null>(null);
   const [actionInProgress, setActionInProgress] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setErrorMessage(null);
+  }, [selectedAlert]);
 
 
 
@@ -94,77 +88,56 @@ export function MainOfficePanel({
       const zoneName = ZONE_NAME_MAP[v.zone_id] || v.zone_name || 'Assembly Line';
       const camLabel = CAMERA_MAP[v.zone_id] || 'CAM 02';
 
+      const formatPpeItemName = (item: string) => {
+        if (item === 'hard_hat' || item === 'helmet') return 'Helmet';
+        if (item === 'safety_vest' || item === 'vest') return 'Safety Vest';
+        if (item === 'safety_shoes' || item === 'shoes') return 'Safety Shoes (beta)';
+        if (item === 'gloves') return 'Gloves (beta)';
+        if (item === 'mask') return 'Mask (beta)';
+        return item.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
+      };
+
+      const missingItems = v.ppe_items_missing || [];
+      const formattedItems = missingItems.map(formatPpeItemName);
+      const alertType = formattedItems.length > 0 ? `Missing: ${formattedItems.join(', ')}` : 'PPE Violation';
+      const description = `Worker detected in ${zoneName} without ${formattedItems.length > 0 ? formattedItems.join(', ') : 'proper PPE'}.`;
+      const actionRecommended = `Verify PPE compliance (${formattedItems.length > 0 ? formattedItems.join(', ') : 'required items'}) on CCTV and contact supervisor.`;
+
+      // Extract worker name if index is embedded in zone_name (e.g. "Worker #1")
+      let workerName = (v as any).worker_name || 'Raj';
+      const match = v.zone_name.match(/Worker #(\d+)/);
+      if (match) {
+        const workerIndex = parseInt(match[1]);
+        const names = ['Raj', 'Priya', 'Arun', 'Karan', 'Mohan'];
+        if (workerIndex >= 1 && workerIndex <= names.length) {
+          workerName = names[workerIndex - 1];
+        } else {
+          workerName = `Worker #${workerIndex}`;
+        }
+      }
+
       list.push({
         id: `ppe_${v.id}`,
         rawId: v.id,
         source: 'ppe',
         time: new Date(v.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         timestampDate: new Date(v.timestamp),
-        alertType: 'Helmet Missing',
-        worker: (v as any).worker_name || 'Raj',
+        alertType,
+        worker: workerName,
         zone: zoneName,
         zoneId: v.zone_id,
         camera: camLabel,
         severity,
         status: v.status === 'resolved' ? 'Resolved' : 'Open',
         statusRaw: v.status,
-        description: `Worker detected in ${zoneName} without a safety helmet.`,
-        actionRecommended: 'Verify helmet compliance on CCTV and issue alert.'
+        description,
+        actionRecommended
       });
     });
-
-    deviations.forEach(d => {
-      const zoneName = ZONE_NAME_MAP[d.zone_id || ''] || 'Robot Zone';
-      const camLabel = CAMERA_MAP[d.zone_id || ''] || 'CAM 04';
-      const severity = d.severity === 'high' ? 'High' : d.severity === 'critical' ? 'Critical' : d.severity === 'medium' ? 'Medium' : 'Low';
-
-      list.push({
-        id: `dev_${d.id}`,
-        rawId: d.id,
-        source: 'deviation',
-        time: new Date(d.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        timestampDate: new Date(d.timestamp),
-        alertType: d.category === 'Confined Space' || d.deviation_type.includes('Area') ? 'Restricted Entry' : 'Compliance Gap',
-        worker: d.deviation_type.split(':')[0] || 'Priya',
-        zone: zoneName,
-        zoneId: d.zone_id,
-        camera: camLabel,
-        severity,
-        status: d.resolved ? 'Resolved' : 'Open',
-        statusRaw: d.resolved ? 'resolved' : 'open',
-        description: d.description || `Regulatory compliance deviation detected in ${zoneName}.`,
-        actionRecommended: d.corrective_action || 'Escalate to area supervisor.'
-      });
-    });
-
-    // Add fallback alert rows if log is empty to match mockup visuals
-    if (list.length === 0) {
-      const mockDates = [
-        new Date(Date.now() - 5 * 60000),
-        new Date(Date.now() - 15 * 60000),
-        new Date(Date.now() - 25 * 60000),
-        new Date(Date.now() - 35 * 60000),
-        new Date(Date.now() - 45 * 60000),
-        new Date(Date.now() - 55 * 60000),
-        new Date(Date.now() - 65 * 60000),
-        new Date(Date.now() - 75 * 60000)
-      ];
-
-      return [
-        { id: 'm1', source: 'mock', time: '10:30 AM', timestampDate: mockDates[0], alertType: 'Helmet Missing', worker: 'Raj', zone: 'Assembly Line', camera: 'CAM 02', severity: 'High', status: 'Open', description: 'Worker Raj detected with missing hard hat.', actionRecommended: 'Contact worker Raj immediately.' },
-        { id: 'm2', source: 'mock', time: '10:28 AM', timestampDate: mockDates[1], alertType: 'Fall Detected', worker: 'Arun', zone: 'Warehouse', camera: 'CAM 03', severity: 'Critical', status: 'Open', description: 'Motion sensors detected fall indication.', actionRecommended: 'Verify status of worker Arun.' },
-        { id: 'm3', source: 'mock', time: '10:20 AM', timestampDate: mockDates[2], alertType: 'Smoke Detected', worker: '-', zone: 'Boiler Room', camera: 'CAM 05', severity: 'Medium', status: 'Open', description: 'Thermal scanner detected elevated readings.', actionRecommended: 'Deploy fire control protocol.' },
-        { id: 'm4', source: 'mock', time: '10:17 AM', timestampDate: mockDates[3], alertType: 'Restricted Entry', worker: 'Priya', zone: 'Robot Zone', camera: 'CAM 04', severity: 'High', status: 'Open', description: 'Unauthorized entry in Robot Zone safety cage.', actionRecommended: 'Lock down safety cage power.' },
-        { id: 'm5', source: 'mock', time: '10:15 AM', timestampDate: mockDates[4], alertType: 'No Safety Vest', worker: 'Karan', zone: 'Assembly Line', camera: 'CAM 02', severity: 'Medium', status: 'Resolved', description: 'Worker detected without high-visibility vest.', actionRecommended: 'Resolved. Safety vest verified.' },
-        { id: 'm6', source: 'mock', time: '10:11 AM', timestampDate: mockDates[5], alertType: 'Helmet Missing', worker: 'Suresh', zone: 'Loading Bay', camera: 'CAM 06', severity: 'High', status: 'Open', description: 'Helmet violation at main loading dock.', actionRecommended: 'Issue warning notice.' },
-        { id: 'm7', source: 'mock', time: '10:04 AM', timestampDate: mockDates[6], alertType: 'Fire Detected', worker: '-', zone: 'Electrical Room', camera: 'CAM 01', severity: 'Critical', status: 'Resolved', description: 'Thermal sensor flag at switchboard.', actionRecommended: 'Check circuit breaker history.' },
-        { id: 'm8', source: 'mock', time: '10:01 AM', timestampDate: mockDates[7], alertType: 'Gloves Missing', worker: 'Mohan', zone: 'Assembly Line', camera: 'CAM 02', severity: 'Low', status: 'Open', description: 'Worker Mohan handling parts without insulating gloves.', actionRecommended: 'Contact Assembly Line manager.' }
-      ];
-    }
 
     list.sort((a, b) => b.timestampDate.getTime() - a.timestampDate.getTime());
     return list;
-  }, [violations, deviations]);
+  }, [violations]);
 
   // Apply filters
   const filteredAlerts = useMemo(() => {
@@ -320,22 +293,17 @@ export function MainOfficePanel({
   const handleResolveAlert = async () => {
     if (!selectedAlert) return;
     setActionInProgress(true);
+    setErrorMessage(null);
     try {
-      if (selectedAlert.source === 'ppe') {
-        await onResolve(selectedAlert.rawId);
-      } else if (selectedAlert.source === 'deviation') {
-        await fetch(`/api/v1/risk/compliance/deviations/${selectedAlert.rawId}/resolve`, { method: 'POST' });
-      } else if (selectedAlert.source === 'mock') {
-        // mock alerts: local-only status update
-      }
+      await onResolve(selectedAlert.rawId || selectedAlert.id, selectedAlert.source);
       // Update panel status in-place — keep panel open so user sees 'Resolved' confirmation
       setSelectedAlert((prev: any) => prev ? { ...prev, status: 'Resolved', statusRaw: 'resolved' } : null);
       onRefresh();
-    } catch (err) {
+    } catch (err: any) {
       console.warn("Failed to resolve alert:", err);
+      setErrorMessage(err.message || 'Failed to resolve safety alert. Please try again.');
     } finally {
       setActionInProgress(false);
-      // Note: intentionally NOT calling setSelectedAlert(null) here
     }
   };
 
@@ -494,63 +462,71 @@ export function MainOfficePanel({
               </tr>
             </thead>
             <tbody className="divide-y divide-theme-border">
-              {filteredAlerts.map((alert) => (
-                <tr key={alert.id} className="hover:bg-theme-bg-alt/40 transition-colors text-xs font-semibold text-theme-text">
-                  <td className="px-6 py-4 font-mono font-bold text-theme-text-muted">{alert.time}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <span className={`p-1.5 rounded-lg ${
-                        alert.severity === 'Critical' || alert.severity === 'High' ? 'bg-red-500/10 text-red-400' :
-                        alert.severity === 'Medium' ? 'bg-amber-500/10 text-amber-400' : 'bg-emerald-500/10 text-emerald-400'
-                      }`}>
-                        {alert.alertType.includes('Helmet') || alert.alertType.includes('Vest') ? <ShieldAlert className="h-3.5 w-3.5" /> :
-                         alert.alertType.includes('Smoke') || alert.alertType.includes('Fire') ? <Flame className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
-                      </span>
-                      <span>{alert.alertType}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-theme-text-secondary font-bold">{alert.worker}</td>
-                  <td className="px-6 py-4 text-theme-text-secondary">{alert.zone}</td>
-                  <td className="px-6 py-4 font-mono text-theme-text-muted">{alert.camera}</td>
-                  <td className="px-6 py-4 text-center">
-                    <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full border text-[9px] font-black font-mono uppercase ${
-                      alert.severity === 'Critical' ? 'bg-red-500/10 border-red-500/30 text-red-500 animate-pulse' :
-                      alert.severity === 'High' ? 'bg-red-500/10 border-red-500/20 text-red-400' :
-                      alert.severity === 'Medium' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
-                      'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-                    }`}>
-                      {alert.severity}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black font-mono uppercase ${
-                      alert.status === 'Open' ? 'bg-red-500/10 border border-red-500/20 text-red-400 animate-pulse' :
-                      'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
-                    }`}>
-                      {alert.status === 'Open' && <span className="h-1.5 w-1.5 rounded-full bg-red-500" />}
-                      {alert.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    <button
-                      onClick={() => {
-                        if (onSelectAlert) {
-                          onSelectAlert(alert);
-                        } else {
-                          setSelectedAlert(alert);
-                        }
-                      }}
-                      className={`px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider border transition-all ${
-                        alert.status === 'Open' 
-                          ? 'bg-theme-bg hover:bg-theme-card-hover border-theme-border text-theme-text-secondary hover:text-theme-text' 
-                          : 'bg-emerald-500/15 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20'
-                      }`}
-                    >
-                      {alert.status === 'Open' ? 'View' : 'Details'}
-                    </button>
+              {filteredAlerts.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-6 py-16 text-center text-theme-text-muted font-mono text-[9px] font-black uppercase tracking-widest bg-theme-bg/10">
+                    🛡️ No safety violations detected by active cameras
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredAlerts.map((alert) => (
+                  <tr key={alert.id} className="hover:bg-theme-bg-alt/40 transition-colors text-xs font-semibold text-theme-text">
+                    <td className="px-6 py-4 font-mono font-bold text-theme-text-muted">{alert.time}</td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <span className={`p-1.5 rounded-lg ${
+                          alert.severity === 'Critical' || alert.severity === 'High' ? 'bg-red-500/10 text-red-400' :
+                          alert.severity === 'Medium' ? 'bg-amber-500/10 text-amber-400' : 'bg-emerald-500/10 text-emerald-400'
+                        }`}>
+                          {alert.alertType.includes('Helmet') || alert.alertType.includes('Vest') ? <ShieldAlert className="h-3.5 w-3.5" /> :
+                           alert.alertType.includes('Smoke') || alert.alertType.includes('Fire') ? <Flame className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
+                        </span>
+                        <span>{alert.alertType}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-theme-text-secondary font-bold">{alert.worker}</td>
+                    <td className="px-6 py-4 text-theme-text-secondary">{alert.zone}</td>
+                    <td className="px-6 py-4 font-mono text-theme-text-muted">{alert.camera}</td>
+                    <td className="px-6 py-4 text-center">
+                      <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full border text-[9px] font-black font-mono uppercase ${
+                        alert.severity === 'Critical' ? 'bg-red-500/10 border-red-500/30 text-red-500 animate-pulse' :
+                        alert.severity === 'High' ? 'bg-red-500/10 border-red-500/20 text-red-400' :
+                        alert.severity === 'Medium' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
+                        'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                      }`}>
+                        {alert.severity}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black font-mono uppercase ${
+                        alert.status === 'Open' ? 'bg-red-500/10 border border-red-500/20 text-red-400 animate-pulse' :
+                        'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
+                      }`}>
+                        {alert.status === 'Open' && <span className="h-1.5 w-1.5 rounded-full bg-red-500" />}
+                        {alert.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <button
+                        onClick={() => {
+                          if (onSelectAlert) {
+                            onSelectAlert(alert);
+                          } else {
+                            setSelectedAlert(alert);
+                          }
+                        }}
+                        className={`px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider border transition-all ${
+                          alert.status === 'Open' 
+                            ? 'bg-theme-bg hover:bg-theme-card-hover border-theme-border text-theme-text-secondary hover:text-theme-text' 
+                            : 'bg-emerald-500/15 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20'
+                        }`}
+                      >
+                        {alert.status === 'Open' ? 'View' : 'Details'}
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -727,6 +703,12 @@ export function MainOfficePanel({
                 </p>
               </div>
             </div>
+
+            {errorMessage && (
+              <div className="text-[10px] font-bold font-mono text-red-400 bg-red-500/10 border border-red-500/20 p-2.5 rounded-xl mb-3 leading-tight uppercase w-full">
+                ⚠️ {errorMessage}
+              </div>
+            )}
 
             <div className="flex gap-2 pt-3 border-t border-theme-border">
               <button

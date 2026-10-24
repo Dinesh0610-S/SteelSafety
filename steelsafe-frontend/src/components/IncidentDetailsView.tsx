@@ -6,7 +6,7 @@ import {
 interface IncidentDetailsViewProps {
   alert: any;
   onBack: () => void;
-  onResolve: (id: any) => void;
+  onResolve: (id: any, source: string) => Promise<void>;
 }
 
 export function IncidentDetailsView({ alert, onBack, onResolve }: IncidentDetailsViewProps) {
@@ -18,7 +18,14 @@ export function IncidentDetailsView({ alert, onBack, onResolve }: IncidentDetail
     if (lower === 'acknowledged') return 'Acknowledged';
     return 'Open';
   };
-  const [status, setStatus] = useState(() => normalizeStatus(alert.status));
+  const [status, setStatus] = useState(() => {
+    if (alert.source === 'mock') {
+      const saved = localStorage.getItem(`steelsafe_resolved_${alert.id}`);
+      if (saved === 'true') return 'Resolved';
+    }
+    return normalizeStatus(alert.status);
+  });
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
   
   const label = alert.alertType || alert.label || 'Safety Deviation';
@@ -52,16 +59,18 @@ export function IncidentDetailsView({ alert, onBack, onResolve }: IncidentDetail
   };
 
   const handleMarkResolved = async () => {
+    setErrorMessage(null);
     try {
-      await onResolve(alert.rawId || alert.id);
-    } catch (err) {
+      await onResolve(alert.rawId || alert.id, alert.source);
+      setStatus('Resolved');
+      localStorage.setItem(`steelsafe_resolved_${alert.id}`, 'true');
+      localStorage.setItem(`steelsafe_resolved_at_${alert.id}`, new Date().toLocaleString());
+      localStorage.setItem(`steelsafe_resolved_by_${alert.id}`, 'Safety Operator');
+      window.dispatchEvent(new Event('steelsafe_alert_updated'));
+    } catch (err: any) {
       console.warn('Failed to resolve:', err);
+      setErrorMessage(err.message || 'Failed to resolve safety alert. Please try again.');
     }
-    setStatus('Resolved');
-    // Save to local storage sync
-    localStorage.setItem(`steelsafe_resolved_${alert.id}`, 'true');
-    // Also trigger custom event to notify parent components
-    window.dispatchEvent(new Event('steelsafe_alert_updated'));
   };
 
   const toggleAction = (key: keyof typeof actions) => {
@@ -226,6 +235,19 @@ Report generated on: ${new Date().toLocaleString()}
               <span className="text-theme-text-muted">AI Confidence</span>
               <span className="text-emerald-400 font-mono">96%</span>
             </div>
+            {status === 'Resolved' && (
+              <div className="mt-3 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex flex-col gap-1 text-[11px] leading-tight font-sans">
+                <span className="text-emerald-400 font-black uppercase text-[9px] tracking-wider mb-1">Resolution Info</span>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Resolved At</span>
+                  <span className="text-slate-200 font-mono">{localStorage.getItem(`steelsafe_resolved_at_${alert.id}`) || 'Prior Session'}</span>
+                </div>
+                <div className="flex justify-between mt-0.5">
+                  <span className="text-slate-400">Resolved By</span>
+                  <span className="text-slate-200 font-bold">{localStorage.getItem(`steelsafe_resolved_by_${alert.id}`) || 'Safety Officer'}</span>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="w-full" />
@@ -336,6 +358,12 @@ Report generated on: ${new Date().toLocaleString()}
             placeholder="Add comments on incident investigation, corrective steps, or checkup reports..."
             className="w-full flex-1 bg-theme-bg-alt/60 border border-theme-border rounded-2xl p-3.5 text-xs font-semibold text-theme-text placeholder-theme-text-muted focus:outline-none focus:border-theme-border resize-none min-h-[70px] mt-2"
           />
+
+          {errorMessage && (
+            <div className="text-[10px] font-bold font-mono text-red-400 bg-red-500/10 border border-red-500/20 p-2.5 rounded-xl mt-2 leading-tight uppercase">
+              ⚠️ {errorMessage}
+            </div>
+          )}
 
           <div className="flex items-center justify-end gap-3 mt-4">
             <button

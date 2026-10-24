@@ -14,18 +14,13 @@ interface CameraDetailsViewProps {
 }
 
 const CAMERA_INFO_MAP: Record<string, { name: string; ip: string; zone: string; isWebcam: boolean }> = {
-  // Coke Oven Battery (plant_a)
-  "zone_cob1": { name: "CAM 01 - Coke Oven Battery 1", ip: "192.168.1.101", zone: "Coke Oven Battery 1", isWebcam: true },
-  "zone_gcm": { name: "CAM 02 - Gas Collection Main", ip: "192.168.1.102", zone: "Gas Collection Main", isWebcam: false },
-  "zone_qt": { name: "CAM 03 - Quenching Tower", ip: "192.168.1.103", zone: "Quenching Tower", isWebcam: false },
-  "zone_ca": { name: "CAM 04 - Charging Area", ip: "192.168.1.104", zone: "Charging Area", isWebcam: false },
-  "zone_cr": { name: "CAM 05 - Control Room", ip: "192.168.1.105", zone: "Control Room", isWebcam: false },
-  // Rolling Mill Complex (plant_b)
-  "zone_rhf": { name: "CAM 01 - Reheating Furnace", ip: "192.168.2.101", zone: "Reheating Furnace", isWebcam: false },
-  "zone_rs": { name: "CAM 02 - Rolling Stand", ip: "192.168.2.102", zone: "Rolling Stand", isWebcam: false },
-  "zone_cb": { name: "CAM 03 - Cooling Bed", ip: "192.168.2.103", zone: "Cooling Bed", isWebcam: false },
-  "zone_fl": { name: "CAM 04 - Finishing Line", ip: "192.168.2.104", zone: "Finishing Line", isWebcam: false },
-  "zone_cr2": { name: "CAM 05 - Mill Control Room", ip: "192.168.2.105", zone: "Mill Control Room", isWebcam: false },
+  "CAM01": { name: "CAM 01 - Coke Oven Battery", ip: "192.168.1.101", zone: "Coke Oven Battery", isWebcam: true },
+  "CAM02": { name: "CAM 02 - Blast Furnace Zone", ip: "192.168.1.102", zone: "Blast Furnace Zone", isWebcam: false },
+  "CAM03": { name: "CAM 03 - Gas Cleaning Plant", ip: "192.168.1.103", zone: "Gas Cleaning Plant", isWebcam: false },
+  // Backward compatibility alias for zone_cob1, zone_gcm, zone_ca
+  "zone_cob1": { name: "CAM 01 - Coke Oven Battery", ip: "192.168.1.101", zone: "Coke Oven Battery", isWebcam: true },
+  "zone_ca": { name: "CAM 02 - Blast Furnace Zone", ip: "192.168.1.102", zone: "Blast Furnace Zone", isWebcam: false },
+  "zone_gcm": { name: "CAM 03 - Gas Cleaning Plant", ip: "192.168.1.103", zone: "Gas Cleaning Plant", isWebcam: false },
 };
 
 export function CameraDetailsView({ cameraId, violations, deviations, onBack }: CameraDetailsViewProps) {
@@ -133,14 +128,7 @@ export function CameraDetailsView({ cameraId, violations, deviations, onBack }: 
     }));
   }, [cameraAlerts]);
 
-  // Simulated indicators for mock camera view bounding boxes
-  const mockCameraWorkers = useMemo(() => {
-    if (cameraId === 'zone_cob1') return [{ label: 'Worker: Compliant', x: 'left-[20%] top-[40%] w-[25%] h-[40%]', color: 'border-emerald-500 text-emerald-400' }];
-    if (cameraId === 'zone_qt') return [{ label: 'Worker: Compliant', x: 'left-[40%] top-[30%] w-[20%] h-[50%]', color: 'border-emerald-500 text-emerald-400' }];
-    if (cameraId === 'zone_ca') return [{ label: 'Operator: Valid Permit', x: 'left-[30%] top-[35%] w-[22%] h-[45%]', color: 'border-emerald-500 text-emerald-400' }];
-    if (cameraId === 'zone_cr') return [{ label: 'Target: Area Locked', x: 'left-[45%] top-[40%] w-[18%] h-[35%]', color: 'border-amber-500 text-amber-400' }];
-    return [];
-  }, [cameraId]);
+
 
   return (
     <div id="camera-details-view" className="flex flex-col gap-6 w-full text-slate-100">
@@ -223,14 +211,7 @@ export function CameraDetailsView({ cameraId, violations, deviations, onBack }: 
               </div>
             )}
 
-            {/* Simulated Bounding Box for static/simulated cams */}
-            {(!camInfo.isWebcam || !webcamActive) && mockCameraWorkers.map((w, idx) => (
-              <div key={idx} className={`absolute ${w.x} border-2 ${w.color} rounded-lg flex flex-col justify-between p-1 bg-black/10 backdrop-blur-[0.5px] animate-pulse`}>
-                <span className="text-[7.5px] font-bold font-mono px-1 rounded bg-black/60 text-white truncate max-w-full leading-none">
-                  {w.label}
-                </span>
-              </div>
-            ))}
+
 
             {/* Video Live Badge overlay */}
             <div className="absolute top-3 left-3 flex items-center gap-2 pointer-events-none">

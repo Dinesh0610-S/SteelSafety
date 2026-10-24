@@ -1,5 +1,21 @@
 import { useState, useEffect } from 'react';
 
+export function toNaiveISOString(date: Date): string {
+  const pad = (n: number) => n < 10 ? '0' + n : n;
+  const padMs = (n: number) => {
+    if (n < 10) return '00' + n;
+    if (n < 100) return '0' + n;
+    return n;
+  };
+  return date.getFullYear() +
+    '-' + pad(date.getMonth() + 1) +
+    '-' + pad(date.getDate()) +
+    'T' + pad(date.getHours()) +
+    ':' + pad(date.getMinutes()) +
+    ':' + pad(date.getSeconds()) +
+    '.' + padMs(date.getMilliseconds());
+}
+
 export interface RiskStatus {
   zone_id: string;
   risk_score: number;
@@ -152,10 +168,10 @@ export function usePlantData(
   // Fetch initial T0 string from health check or sensors when plantId changes
   useEffect(() => {
     setLoading(true);
-    fetch('/api/v1/')
+    fetch(`/api/v1/?_cb=${Date.now()}`)
       .then((r) => r.json())
       .then(() => {
-        return fetch(`/api/v1/sensors/history?limit=1&plant_id=${plantId}`);
+        return fetch(`/api/v1/sensors/history?limit=1&plant_id=${plantId}&_cb=${Date.now()}`);
       })
       .then((r) => r.json())
       .then((data) => {
@@ -173,7 +189,7 @@ export function usePlantData(
   // Fetch comparison metrics when plantId changes
   useEffect(() => {
     if (loading || error) return;
-    fetch(`/api/v1/metrics/comparison?plant_id=${plantId}`)
+    fetch(`/api/v1/metrics/comparison?plant_id=${plantId}&_cb=${Date.now()}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data && !data.error) {
@@ -189,11 +205,43 @@ export function usePlantData(
   useEffect(() => {
     if (!virtualTime) return;
 
-    const isoStr = virtualTime.toISOString();
+    const isoStr = toNaiveISOString(virtualTime);
 
-    fetch(`/api/v1/risk/history?plant_id=${plantId}&end=${encodeURIComponent(isoStr)}&limit=2000`)
+    // 1. Fetch history for selected zone charts (lightweight, limit=300, no snapshots)
+    if (!selectedZoneId) {
+      setSelectedZoneHistory([]);
+    } else {
+      fetch(`/api/v1/risk/history?plant_id=${plantId}&zone_id=${selectedZoneId}&end=${encodeURIComponent(isoStr)}&limit=300&_cb=${Date.now()}`)
+        .then((res) => {
+          if (!res.ok) {
+            if (res.status === 404) return []; // return empty list gracefully
+            throw new Error("History fetch failed");
+          }
+          return res.json();
+        })
+        .then((data: any[]) => {
+          const history = data
+            .map((item) => ({
+              time: new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              score: item.risk_score,
+              level: item.risk_level,
+              rawTime: new Date(item.timestamp).getTime(),
+            }))
+            .sort((a, b) => a.rawTime - b.rawTime);
+          setSelectedZoneHistory(history);
+        })
+        .catch(() => {
+          // Safe fail-silent during reset / play transitions
+        });
+    }
+
+    // 2. Fetch latest status per zone (includes snapshots for stats/monitoring, limit=30, order=desc)
+    fetch(`/api/v1/risk/history?plant_id=${plantId}&end=${encodeURIComponent(isoStr)}&limit=30&order=desc&include_snapshot=true&_cb=${Date.now()}`)
       .then((res) => {
-        if (!res.ok) throw new Error("History fetch failed");
+        if (!res.ok) {
+          if (res.status === 404) return []; // return empty list gracefully
+          throw new Error("Latest risks fetch failed");
+        }
         return res.json();
       })
       .then((data: any[]) => {
@@ -206,22 +254,9 @@ export function usePlantData(
           }
         });
         setCurrentRisks(latestByZone);
-
-        if (selectedZoneId) {
-          const history = data
-            .filter((item) => item.zone_id === selectedZoneId)
-            .map((item) => ({
-              time: new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              score: item.risk_score,
-              level: item.risk_level,
-              rawTime: new Date(item.timestamp).getTime(),
-            }))
-            .sort((a, b) => a.rawTime - b.rawTime);
-          setSelectedZoneHistory(history);
-        }
       })
-      .catch(() => {
-        // Safe fail-silent during reset / play transitions
+      .catch((e) => {
+        console.warn("Failed to fetch latest risks with snapshots:", e);
       });
   }, [virtualTime, selectedZoneId, plantId]);
 
@@ -232,8 +267,8 @@ export function usePlantData(
       return;
     }
 
-    const isoStr = virtualTime.toISOString();
-    const fiveMinAgoStr = new Date(virtualTime.getTime() - 5 * 60 * 1000).toISOString();
+    const isoStr = toNaiveISOString(virtualTime);
+    const fiveMinAgoStr = toNaiveISOString(new Date(virtualTime.getTime() - 5 * 60 * 1000));
 
     // 1. Fetch sensor detail
     const sensorPromise = fetch(`/api/v1/sensors/history?zone_id=${selectedZoneId}&end=${encodeURIComponent(isoStr)}&limit=1&plant_id=${plantId}`)

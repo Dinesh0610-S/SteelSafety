@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional
 
 from db.database import get_db
@@ -94,6 +94,7 @@ def get_sensor_history(
     if start:
         query = query.filter(SensorReading.timestamp >= start)
     if end:
-        query = query.filter(SensorReading.timestamp <= end)
+        buffered_end = end + timedelta(milliseconds=1)
+        query = query.filter(SensorReading.timestamp <= buffered_end)
 
     return query.offset(offset).limit(limit).all()

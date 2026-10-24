@@ -11,5 +11,6 @@ LIVE_CCTV_STATE = {
     "zone_id": None,
     "person_detected": False,
     "ppe_compliant": True,
-    "timestamp": None
+    "timestamp": None,
+    "ppe_items_missing": []
 }

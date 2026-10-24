@@ -29,31 +29,21 @@ interface ComplianceDeviation {
 }
 
 const CAMERA_MAP: Record<string, string> = {
+  "CAM01": "CAM 01",
+  "CAM02": "CAM 02",
+  "CAM03": "CAM 03",
   "zone_cob1": "CAM 01",
-  "zone_gcm": "CAM 02",
-  "zone_qt": "CAM 03",
-  "zone_ca": "CAM 04",
-  "zone_cr": "CAM 05",
-  "zone_rhf": "CAM 01",
-  "zone_rs": "CAM 02",
-  "zone_cb": "CAM 03",
-  "zone_fl": "CAM 04",
-  "zone_cr2": "CAM 05",
+  "zone_ca": "CAM 02",
+  "zone_gcm": "CAM 03",
 };
 
 const ZONE_NAME_MAP: Record<string, string> = {
-  // Coke Oven Battery (plant_a)
-  "zone_cob1": "Coke Oven Battery 1",
-  "zone_gcm": "Gas Collection Main",
-  "zone_qt": "Quenching Tower",
-  "zone_ca": "Charging Area",
-  "zone_cr": "Control Room",
-  // Rolling Mill Complex (plant_b)
-  "zone_rhf": "Reheating Furnace",
-  "zone_rs": "Rolling Stand",
-  "zone_cb": "Cooling Bed",
-  "zone_fl": "Finishing Line",
-  "zone_cr2": "Mill Control Room",
+  "CAM01": "Coke Oven Battery",
+  "CAM02": "Blast Furnace Zone",
+  "CAM03": "Gas Cleaning Plant",
+  "zone_cob1": "Coke Oven Battery",
+  "zone_ca": "Blast Furnace Zone",
+  "zone_gcm": "Gas Cleaning Plant",
 };
 
 export function ReportsView({ violations, deviations }: ReportsViewProps) {
@@ -95,8 +85,8 @@ export function ReportsView({ violations, deviations }: ReportsViewProps) {
     });
 
     deviations.forEach(d => {
-      const zoneName = ZONE_NAME_MAP[d.zone_id || ''] || 'Robot Zone';
-      const camLabel = CAMERA_MAP[d.zone_id || ''] || 'CAM 04';
+      const zoneName = ZONE_NAME_MAP[d.zone_id || ''] || 'Blast Furnace Zone';
+      const camLabel = CAMERA_MAP[d.zone_id || ''] || 'CAM 01';
       const severity = d.severity === 'high' ? 'High' : d.severity === 'critical' ? 'Critical' : d.severity === 'medium' ? 'Medium' : 'Low';
       const alertType = d.category === 'Confined Space' || d.deviation_type.includes('Area') ? 'Restricted Entry' : 'Compliance Gap';
 
@@ -129,14 +119,14 @@ export function ReportsView({ violations, deviations }: ReportsViewProps) {
       ];
 
       return [
-        { id: 'm1', time: '10:30 AM', timestampDate: mockDates[0], alertType: 'PPE Violation', worker: 'Raj', zone: 'Assembly Line', camera: 'CAM 02', severity: 'High', status: 'Open', description: 'Missing hard hat.' },
-        { id: 'm2', time: '10:28 AM', timestampDate: mockDates[1], alertType: 'Fall Detected', worker: 'Arun', zone: 'Warehouse', camera: 'CAM 03', severity: 'Critical', status: 'Open', description: 'Motion sensor alert.' },
-        { id: 'm3', time: '10:20 AM', timestampDate: mockDates[2], alertType: 'Smoke/Fire', worker: '-', zone: 'Boiler Room', camera: 'CAM 05', severity: 'Medium', status: 'Open', description: 'High thermal index.' },
-        { id: 'm4', time: '10:17 AM', timestampDate: mockDates[3], alertType: 'Restricted Entry', worker: 'Priya', zone: 'Robot Zone', camera: 'CAM 04', severity: 'High', status: 'Open', description: 'Unauthorized safety cage entry.' },
-        { id: 'm5', time: '10:15 AM', timestampDate: mockDates[4], alertType: 'PPE Violation', worker: 'Karan', zone: 'Assembly Line', camera: 'CAM 02', severity: 'Medium', status: 'Resolved', description: 'Missing vest resolved.' },
-        { id: 'm6', time: '10:11 AM', timestampDate: mockDates[5], alertType: 'PPE Violation', worker: 'Suresh', zone: 'Loading Bay', camera: 'CAM 06', severity: 'High', status: 'Open', description: 'Missing hard hat at main loading dock.' },
-        { id: 'm7', time: '10:04 AM', timestampDate: mockDates[6], alertType: 'Smoke/Fire', worker: '-', zone: 'Electrical Room', camera: 'CAM 01', severity: 'Critical', status: 'Resolved', description: 'High temp at switchboard resolved.' },
-        { id: 'm8', time: '10:01 AM', timestampDate: mockDates[7], alertType: 'Others', worker: 'Mohan', zone: 'Assembly Line', camera: 'CAM 02', severity: 'Low', status: 'Open', description: 'Missing safety gloves.' }
+        { id: 'm1', time: '10:30 AM', timestampDate: mockDates[0], alertType: 'PPE Violation', worker: 'Raj', zone: 'Coke Oven Battery', camera: 'CAM 01', severity: 'High', status: 'Open', description: 'Missing hard hat.' },
+        { id: 'm2', time: '10:28 AM', timestampDate: mockDates[1], alertType: 'Fall Detected', worker: 'Arun', zone: 'Gas Cleaning Plant', camera: 'CAM 03', severity: 'Critical', status: 'Open', description: 'Motion sensor alert.' },
+        { id: 'm3', time: '10:20 AM', timestampDate: mockDates[2], alertType: 'Smoke/Fire', worker: '-', zone: 'Gas Cleaning Plant', camera: 'CAM 03', severity: 'Medium', status: 'Open', description: 'High thermal index.' },
+        { id: 'm4', time: '10:17 AM', timestampDate: mockDates[3], alertType: 'Restricted Entry', worker: 'Priya', zone: 'Blast Furnace Zone', camera: 'CAM 02', severity: 'High', status: 'Open', description: 'Unauthorized safety cage entry.' },
+        { id: 'm5', time: '10:15 AM', timestampDate: mockDates[4], alertType: 'PPE Violation', worker: 'Karan', zone: 'Blast Furnace Zone', camera: 'CAM 02', severity: 'Medium', status: 'Resolved', description: 'Missing vest resolved.' },
+        { id: 'm6', time: '10:11 AM', timestampDate: mockDates[5], alertType: 'PPE Violation', worker: 'Suresh', zone: 'Coke Oven Battery', camera: 'CAM 01', severity: 'High', status: 'Open', description: 'Missing hard hat at main loading dock.' },
+        { id: 'm7', time: '10:04 AM', timestampDate: mockDates[6], alertType: 'Smoke/Fire', worker: '-', zone: 'Coke Oven Battery', camera: 'CAM 01', severity: 'Critical', status: 'Resolved', description: 'High temp at switchboard resolved.' },
+        { id: 'm8', time: '10:01 AM', timestampDate: mockDates[7], alertType: 'Others', worker: 'Mohan', zone: 'Blast Furnace Zone', camera: 'CAM 02', severity: 'Low', status: 'Open', description: 'Missing safety gloves.' }
       ];
     }
 

@@ -164,3 +164,26 @@ class ComplianceDeviation(Base):
     severity               = Column(String(16), nullable=False)  # high/medium/low
     corrective_action      = Column(Text, nullable=False)
     resolved               = Column(Boolean, nullable=False, default=False)
+
+
+class PPEViolationLog(Base):
+    """
+    Persistent store for PPE violation events detected by camera feeds.
+    Replaces the old in-memory PPE_VIOLATION_EVENTS list so events survive server restarts.
+    """
+    __tablename__ = "ppe_violation_log"
+
+    id                 = Column(Integer, primary_key=True, autoincrement=True)
+    plant_id           = Column(String(32), nullable=False, index=True, default=DEFAULT_PLANT_ID)
+    zone_id            = Column(String(32), nullable=False, index=True)
+    zone_name          = Column(String(128), nullable=False)
+    timestamp          = Column(DateTime, nullable=False, index=True)
+    ppe_items_missing  = Column(Text, nullable=False, default="[]")  # JSON-encoded list
+    confidence_pct     = Column(Float, nullable=False, default=0.0)
+    detection_method   = Column(String(32), nullable=False, default="model_inferred")
+    status             = Column(String(16), nullable=False, default="open", index=True)
+    risk_score_at_time = Column(Float, nullable=True)
+    camera_id          = Column(String(32), nullable=True, index=True)
+    source             = Column(String(32), nullable=True, default="video_file")  # "live_webcam" | "video_file"
+    in_restricted_zone = Column(Boolean, nullable=True, default=True)
+

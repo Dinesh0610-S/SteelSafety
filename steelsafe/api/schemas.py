@@ -218,6 +218,7 @@ class CameraStateRequest(BaseModel):
     zone_id: str
     person_detected: bool
     ppe_compliant: bool
+    ppe_items_missing: Optional[List[str]] = None
 
 
 class PPEViolationRequest(BaseModel):

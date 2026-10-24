@@ -179,7 +179,7 @@ export function FactoryMapView({ currentRisks, violations, onSelectCamera, onSel
 
   // Bottom stats calculations
   const stats = useMemo(() => {
-    const totalCameras = isCokeOven ? 5 : 5;
+    const totalCameras = 3;
     const activeAlerts = violations.filter(v => v.status === 'open').length;
 
     const scores = Object.values(currentRisks).map(r => r.risk_score);

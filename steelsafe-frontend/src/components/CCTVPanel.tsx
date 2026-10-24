@@ -226,7 +226,7 @@ export function CCTVPanel({ selectedZoneId, onLiveRiskUpdate, onPPEViolation, ac
               // Draw status label banner
               const labelText = isWorkerCompliant 
                 ? `✓ Worker #${idx + 1}: Compliant (${scorePct}%)`
-                : `✗ Worker #${idx + 1}: Missing: Hard Hat (${scorePct}%)`;
+                : `✗ Worker #${idx + 1}: Missing: Helmet, Vest, Gloves (beta), Mask (beta) (${scorePct}%)`;
                 
               ctx.font = 'bold 11px sans-serif';
               const textWidth = ctx.measureText(labelText).width;
@@ -313,7 +313,7 @@ export function CCTVPanel({ selectedZoneId, onLiveRiskUpdate, onPPEViolation, ac
         body: JSON.stringify({
           zone_id: selectedZoneId,
           plant_id: activePlantId,
-          ppe_items_missing: ['hard_hat'],
+          ppe_items_missing: ['hard_hat', 'safety_vest', 'gloves', 'mask'],
           confidence_pct: 95.0,
           detection_method: 'manual_override',
           risk_score_at_time: 85.0

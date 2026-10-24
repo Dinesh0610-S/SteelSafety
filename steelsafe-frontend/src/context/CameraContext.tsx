@@ -31,6 +31,12 @@ export interface TrackedPerson {
   consecutiveCount: number;
   openViolationId: number | null;
   framesSinceLastSeen: number;
+  helmet: boolean;
+  vest: boolean;
+  shoes: boolean;
+  gloves: boolean;
+  mask: boolean;
+  isVirtual?: boolean;
 }
 
 interface CameraContextType {
@@ -47,7 +53,18 @@ interface CameraContextType {
   realCamZone: string;
   startCamera: () => Promise<void>;
   stopCamera: () => void;
-  setPpeCompliant: React.Dispatch<React.SetStateAction<boolean>>;
+  setPpeCompliant: (val: boolean | ((prev: boolean) => boolean)) => void;
+  // 5 PPE categories simulation modes
+  simulatedHelmet: 'Worn' | 'Missing' | 'Auto';
+  simulatedVest: 'Worn' | 'Missing' | 'Auto';
+  simulatedShoes: 'Worn' | 'Missing' | 'Auto';
+  simulatedGloves: 'Worn' | 'Missing' | 'Auto';
+  simulatedMask: 'Worn' | 'Missing' | 'Auto';
+  setSimulatedHelmet: (val: 'Worn' | 'Missing' | 'Auto') => void;
+  setSimulatedVest: (val: 'Worn' | 'Missing' | 'Auto') => void;
+  setSimulatedShoes: (val: 'Worn' | 'Missing' | 'Auto') => void;
+  setSimulatedGloves: (val: 'Worn' | 'Missing' | 'Auto') => void;
+  setSimulatedMask: (val: 'Worn' | 'Missing' | 'Auto') => void;
 }
 
 const CameraContext = createContext<CameraContextType | undefined>(undefined);
@@ -78,6 +95,146 @@ export const drawPredictions = (
   });
 };
 
+export const evaluatePpeHeuristics = (
+  video: HTMLVideoElement,
+  bbox: [number, number, number, number],
+  modes: {
+    helmet: 'Worn' | 'Missing' | 'Auto';
+    vest: 'Worn' | 'Missing' | 'Auto';
+    shoes: 'Worn' | 'Missing' | 'Auto';
+    gloves: 'Worn' | 'Missing' | 'Auto';
+    mask: 'Worn' | 'Missing' | 'Auto';
+  }
+) => {
+  const results = {
+    helmet: modes.helmet === 'Worn',
+    vest: modes.vest === 'Worn',
+    shoes: modes.shoes === 'Worn',
+    gloves: modes.gloves === 'Worn',
+    mask: modes.mask === 'Worn',
+  };
+
+  if (
+    modes.helmet !== 'Auto' &&
+    modes.vest !== 'Auto' &&
+    modes.shoes !== 'Auto' &&
+    modes.gloves !== 'Auto' &&
+    modes.mask !== 'Auto'
+  ) {
+    return results;
+  }
+
+  try {
+    const [x, y, w, h] = bbox;
+    if (w <= 0 || h <= 0) return results;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return results;
+
+    ctx.drawImage(video, Math.max(0, x), Math.max(0, y), w, h, 0, 0, 64, 128);
+    const imgData = ctx.getImageData(0, 0, 64, 128);
+    const data = imgData.data;
+
+    const getRegionStats = (startYPct: number, endYPct: number, startXPct: number = 0, endXPct: number = 1) => {
+      const startY = Math.floor(startYPct * 128);
+      const endY = Math.floor(endYPct * 128);
+      const startX = Math.floor(startXPct * 64);
+      const endX = Math.floor(endXPct * 64);
+
+      let rSum = 0, gSum = 0, bSum = 0, count = 0;
+      let matchingPpePixels = 0;
+
+      for (let y = startY; y < endY; y++) {
+        for (let x = startX; x < endX; x++) {
+          const idx = (y * 64 + x) * 4;
+          const r = data[idx];
+          const g = data[idx + 1];
+          const b = data[idx + 2];
+          
+          rSum += r;
+          gSum += g;
+          bSum += b;
+          count++;
+
+          const rNorm = r / 255;
+          const gNorm = g / 255;
+          const bNorm = b / 255;
+          const maxVal = Math.max(rNorm, gNorm, bNorm);
+          const minVal = Math.min(rNorm, gNorm, bNorm);
+          let hVal = 0;
+          let sVal = 0;
+          const lVal = (maxVal + minVal) / 2;
+
+          if (maxVal !== minVal) {
+            const d = maxVal - minVal;
+            sVal = lVal > 0.5 ? d / (2 - maxVal - minVal) : d / (maxVal + minVal);
+            switch (maxVal) {
+              case rNorm: hVal = (gNorm - bNorm) / d + (gNorm < bNorm ? 6 : 0); break;
+              case gNorm: hVal = (bNorm - rNorm) / d + 2; break;
+              case bNorm: hVal = (rNorm - gNorm) / d + 4; break;
+            }
+            hVal /= 6;
+          }
+          const hueDegrees = hVal * 360;
+
+          // Color detection ranges
+          const isYellowOrange = (hueDegrees >= 20 && hueDegrees <= 60 && sVal > 0.4 && lVal > 0.3 && lVal < 0.85);
+          const isWhite = (sVal < 0.15 && lVal > 0.7);
+          const isBlue = (hueDegrees >= 185 && hueDegrees <= 240 && sVal > 0.3 && lVal > 0.25 && lVal < 0.8);
+          const isRed = ((hueDegrees <= 20 || hueDegrees >= 340) && sVal > 0.4 && lVal > 0.25 && lVal < 0.85);
+
+          if (isYellowOrange || isWhite || isBlue || isRed) {
+            matchingPpePixels++;
+          }
+        }
+      }
+      return {
+        avgR: rSum / (count || 1),
+        avgG: gSum / (count || 1),
+        avgB: bSum / (count || 1),
+        ppePct: matchingPpePixels / (count || 1),
+        count
+      };
+    };
+
+    if (modes.helmet === 'Auto') {
+      const stats = getRegionStats(0.0, 0.15, 0.2, 0.8);
+      results.helmet = stats.ppePct > 0.15;
+    }
+
+    if (modes.mask === 'Auto') {
+      const stats = getRegionStats(0.08, 0.20, 0.25, 0.75);
+      // mask: check for dominant light blue surgical mask or white mask colors
+      results.mask = stats.ppePct > 0.12;
+    }
+
+    if (modes.vest === 'Auto') {
+      const stats = getRegionStats(0.15, 0.55, 0.15, 0.85);
+      results.vest = stats.ppePct > 0.15;
+    }
+
+    if (modes.gloves === 'Auto') {
+      const leftHand = getRegionStats(0.45, 0.75, 0.0, 0.3);
+      const rightHand = getRegionStats(0.45, 0.75, 0.7, 1.0);
+      results.gloves = leftHand.ppePct > 0.12 || rightHand.ppePct > 0.12;
+    }
+
+    if (modes.shoes === 'Auto') {
+      const stats = getRegionStats(0.82, 1.0, 0.1, 0.9);
+      const avgLightness = (stats.avgR + stats.avgG + stats.avgB) / 3;
+      results.shoes = avgLightness < 90; // dark safety boot colors
+    }
+
+  } catch (err) {
+    console.warn("Error running color heuristics:", err);
+  }
+
+  return results;
+};
+
 interface CameraProviderProps {
   children: React.ReactNode;
   onPPEViolation?: (event: PPEViolationEvent) => void;
@@ -96,8 +253,36 @@ export const CameraProvider: React.FC<CameraProviderProps> = ({ children, onPPEV
   const [personDetected, setPersonDetected] = useState(false);
   const [totalWorkersDetected, setTotalWorkersDetected] = useState(0);
   const [violationWorkersCount, setViolationWorkersCount] = useState(0);
-  const [ppeCompliant, setPpeCompliant] = useState(true);
-  const ppeCompliantRef = useRef(true); // stable ref so inference loop reads latest without restart
+  const [simulatedHelmet, setSimulatedHelmet] = useState<'Worn' | 'Missing' | 'Auto'>('Worn');
+  const [simulatedVest, setSimulatedVest] = useState<'Worn' | 'Missing' | 'Auto'>('Worn');
+  const [simulatedShoes, setSimulatedShoes] = useState<'Worn' | 'Missing' | 'Auto'>('Worn');
+  const [simulatedGloves, setSimulatedGloves] = useState<'Worn' | 'Missing' | 'Auto'>('Worn');
+  const [simulatedMask, setSimulatedMask] = useState<'Worn' | 'Missing' | 'Auto'>('Worn');
+
+  const simHelmetRef = useRef<'Worn' | 'Missing' | 'Auto'>('Worn');
+  const simVestRef = useRef<'Worn' | 'Missing' | 'Auto'>('Worn');
+  const simShoesRef = useRef<'Worn' | 'Missing' | 'Auto'>('Worn');
+  const simGlovesRef = useRef<'Worn' | 'Missing' | 'Auto'>('Worn');
+  const simMaskRef = useRef<'Worn' | 'Missing' | 'Auto'>('Worn');
+
+  useEffect(() => { simHelmetRef.current = simulatedHelmet; }, [simulatedHelmet]);
+  useEffect(() => { simVestRef.current = simulatedVest; }, [simulatedVest]);
+  useEffect(() => { simShoesRef.current = simulatedShoes; }, [simulatedShoes]);
+  useEffect(() => { simGlovesRef.current = simulatedGloves; }, [simulatedGloves]);
+  useEffect(() => { simMaskRef.current = simulatedMask; }, [simulatedMask]);
+
+  const ppeCompliant = simulatedHelmet === 'Worn' && simulatedVest === 'Worn' && simulatedShoes === 'Worn' && simulatedGloves === 'Worn' && simulatedMask === 'Worn';
+
+  const setPpeCompliant = React.useCallback((val: boolean | ((prev: boolean) => boolean)) => {
+    const target = typeof val === 'function' ? val(ppeCompliant) : val;
+    const mode = target ? 'Worn' : 'Missing';
+    setSimulatedHelmet(mode);
+    setSimulatedVest(mode);
+    setSimulatedShoes(mode);
+    setSimulatedGloves(mode);
+    setSimulatedMask(mode);
+  }, [ppeCompliant]);
+
   const [predictions, setPredictions] = useState<LivePrediction[]>([]);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -173,14 +358,12 @@ export const CameraProvider: React.FC<CameraProviderProps> = ({ children, onPPEV
     setViolationWorkersCount(0);
   }, [realCamZone]);
 
-  // Keep refs in sync with latest state/prop values
+  // Keep refs in sync with latest simulated states and reset consecutive counts
   useEffect(() => {
-    ppeCompliantRef.current = ppeCompliant;
-    // Reset consecutive counts so the new state is evaluated fresh (no carry-over frames)
     trackedPersonsRef.current.forEach(tr => {
       tr.consecutiveCount = 0;
     });
-  }, [ppeCompliant]);
+  }, [simulatedHelmet, simulatedVest, simulatedShoes, simulatedGloves, simulatedMask]);
 
   useEffect(() => {
     onPPEViolationRef.current = onPPEViolation;
@@ -225,10 +408,18 @@ export const CameraProvider: React.FC<CameraProviderProps> = ({ children, onPPEV
     }).catch(() => {});
   };
 
-  const triggerViolation = async (tr: TrackedPerson, confidence: number) => {
+  const triggerViolation = async (tr: TrackedPerson, confidence: number, missingItems: string[]) => {
     // Guard: never fire a second open violation for a person that already has one
     if (tr.openViolationId !== null) return;
     if (!activePlantId || !realCamZone) return;
+
+    const backendItems = missingItems.map(item => {
+      if (item === 'helmet') return 'hard_hat';
+      if (item === 'vest') return 'safety_vest';
+      if (item === 'shoes') return 'safety_shoes';
+      return item;
+    });
+
     try {
       const response = await fetch('/api/v1/risk/ppe/violation', {
         method: 'POST',
@@ -236,7 +427,7 @@ export const CameraProvider: React.FC<CameraProviderProps> = ({ children, onPPEV
         body: JSON.stringify({
           zone_id: realCamZone,
           plant_id: activePlantId,
-          ppe_items_missing: ['hard_hat'],
+          ppe_items_missing: backendItems,
           confidence_pct: Math.round(confidence * 100),
           detection_method: 'model_inferred',
           risk_score_at_time: 85.0,
@@ -308,18 +499,41 @@ export const CameraProvider: React.FC<CameraProviderProps> = ({ children, onPPEV
 
       const minScore = config.confidenceThreshold / 100.0;
       const detections = await model.detect(video);
-      const people = detections.filter((p: any) => p.class === 'person' && p.score >= minScore);
+      const people = detections.filter((p: any) => 
+        p.class === 'person' && 
+        p.score >= minScore &&
+        p.bbox[2] < video.videoWidth * 0.9 &&
+        p.bbox[3] < video.videoHeight * 0.9
+      );
       const hasPerson = people.length > 0;
-      setPersonDetected(hasPerson);
+      setPersonDetected(hasPerson || webcamActive);
 
       // Process compliance transition helper
       const processPersonCompliance = async (tr: TrackedPerson, currentScore: number) => {
-        // Read from ref so we always have the latest value without restarting the loop
-        const rawCompliant = config.enablePpe ? ppeCompliantRef.current : true;
+        const modes = {
+          helmet: simHelmetRef.current,
+          vest: simVestRef.current,
+          shoes: simShoesRef.current,
+          gloves: simGlovesRef.current,
+          mask: simMaskRef.current,
+        };
+
+        const rawPpe = evaluatePpeHeuristics(video, tr.bbox, modes);
+        
+        const configEnablePpe = config.enablePpe;
+        const rawCompliant = configEnablePpe
+          ? (rawPpe.helmet && rawPpe.vest && rawPpe.shoes && rawPpe.gloves && rawPpe.mask)
+          : true;
+
         const delayFrames = Math.max(2, Math.round(config.alertDelay * 1.5));
         
         if (tr.compliant === rawCompliant) {
           tr.consecutiveCount = 0;
+          tr.helmet = configEnablePpe ? rawPpe.helmet : true;
+          tr.vest = configEnablePpe ? rawPpe.vest : true;
+          tr.shoes = configEnablePpe ? rawPpe.shoes : true;
+          tr.gloves = configEnablePpe ? rawPpe.gloves : true;
+          tr.mask = configEnablePpe ? rawPpe.mask : true;
         } else {
           tr.consecutiveCount++;
           if (tr.consecutiveCount >= delayFrames) {
@@ -327,11 +541,22 @@ export const CameraProvider: React.FC<CameraProviderProps> = ({ children, onPPEV
             tr.compliant = rawCompliant;
             tr.consecutiveCount = 0;
 
+            tr.helmet = configEnablePpe ? rawPpe.helmet : true;
+            tr.vest = configEnablePpe ? rawPpe.vest : true;
+            tr.shoes = configEnablePpe ? rawPpe.shoes : true;
+            tr.gloves = configEnablePpe ? rawPpe.gloves : true;
+            tr.mask = configEnablePpe ? rawPpe.mask : true;
+
             if (oldCompliant && !tr.compliant) {
-              // Compliant -> Non-compliant
-              await triggerViolation(tr, currentScore);
+              const missingItems: string[] = [];
+              if (!tr.helmet) missingItems.push('helmet');
+              if (!tr.vest) missingItems.push('vest');
+              if (!tr.shoes) missingItems.push('shoes');
+              if (!tr.gloves) missingItems.push('gloves');
+              if (!tr.mask) missingItems.push('mask');
+              
+              await triggerViolation(tr, currentScore, missingItems);
             } else if (!oldCompliant && tr.compliant) {
-              // Non-compliant -> Compliant
               await resolveViolation(tr);
             }
           }
@@ -347,8 +572,26 @@ export const CameraProvider: React.FC<CameraProviderProps> = ({ children, onPPEV
           score: p.score,
           centerX: x + w / 2,
           centerY: y + h / 2,
+          isVirtual: false,
         };
       });
+
+      if (detected.length === 0 && webcamActive) {
+        const vW = video.videoWidth || 640;
+        const vH = video.videoHeight || 480;
+        detected.push({
+          bbox: [
+            Math.floor(vW * 0.3),
+            Math.floor(vH * 0.15),
+            Math.floor(vW * 0.4),
+            Math.floor(vH * 0.7)
+          ] as [number, number, number, number],
+          score: 0.95,
+          centerX: vW / 2,
+          centerY: vH / 2,
+          isVirtual: true,
+        });
+      }
 
       // Compute pairwise distances between detected and tracked
       const DISTANCE_THRESHOLD = 150;
@@ -406,6 +649,12 @@ export const CameraProvider: React.FC<CameraProviderProps> = ({ children, onPPEV
             consecutiveCount: 0,
             openViolationId: null,
             framesSinceLastSeen: 0,
+            helmet: true,
+            vest: true,
+            shoes: true,
+            gloves: true,
+            mask: true,
+            isVirtual: !!det.isVirtual,
           };
           trackedPersonsRef.current.push(tr);
         }
@@ -424,9 +673,18 @@ export const CameraProvider: React.FC<CameraProviderProps> = ({ children, onPPEV
 
       const livePredictions: LivePrediction[] = activeTracked.map((tr) => {
         const scorePct = (tr.score * 100).toFixed(0);
-        const label = tr.compliant
-          ? `✓ Worker #${tr.id}: Compliant (${scorePct}%)`
-          : `✗ Worker #${tr.id}: Missing: Hard Hat (${scorePct}%)`;
+        const entityName = tr.isVirtual ? 'CCTV Operator' : `Worker #${tr.id}`;
+        
+        let label = `✓ ${entityName}: Compliant (${scorePct}%)`;
+        if (!tr.compliant) {
+          const missing: string[] = [];
+          if (!tr.helmet) missing.push('Helmet');
+          if (!tr.vest) missing.push('Safety Vest');
+          if (!tr.shoes) missing.push('Safety Shoes (beta)');
+          if (!tr.gloves) missing.push('Gloves (beta)');
+          if (!tr.mask) missing.push('Mask (beta)');
+          label = `✗ ${entityName}: Missing: ${missing.length > 0 ? missing.join(', ') : 'None'} (${scorePct}%)`;
+        }
 
         return {
           bbox: tr.bbox,
@@ -444,6 +702,18 @@ export const CameraProvider: React.FC<CameraProviderProps> = ({ children, onPPEV
       const nowMs = Date.now();
       if (nowMs - lastCctvHeartbeat > 2000) {
         lastCctvHeartbeat = nowMs;
+
+        const allMissingItems = new Set<string>();
+        activeTracked.forEach(t => {
+          if (!t.compliant) {
+            if (!t.helmet) allMissingItems.add('hard_hat');
+            if (!t.vest) allMissingItems.add('safety_vest');
+            if (!t.shoes) allMissingItems.add('safety_shoes');
+            if (!t.gloves) allMissingItems.add('gloves');
+            if (!t.mask) allMissingItems.add('mask');
+          }
+        });
+
         fetch('/api/v1/risk/camera/state', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -451,6 +721,7 @@ export const CameraProvider: React.FC<CameraProviderProps> = ({ children, onPPEV
             zone_id: realCamZone,
             person_detected: hasPerson,
             ppe_compliant: violations === 0,
+            ppe_items_missing: Array.from(allMissingItems),
           }),
         }).catch(() => {});
       }
@@ -467,8 +738,7 @@ export const CameraProvider: React.FC<CameraProviderProps> = ({ children, onPPEV
       setDetecting(false);
       cancelAnimationFrame(animationFrameId);
     };
-  // ppeCompliant intentionally NOT in deps — we read it via ppeCompliantRef.current
-  // to avoid restarting the loop (and losing tracking state) on every toggle
+  // ppeCompliant intentionally NOT in deps
   }, [webcamActive, modelLoaded, model, stream, realCamZone]);
 
   return (
@@ -488,6 +758,16 @@ export const CameraProvider: React.FC<CameraProviderProps> = ({ children, onPPEV
         startCamera,
         stopCamera,
         setPpeCompliant,
+        simulatedHelmet,
+        simulatedVest,
+        simulatedShoes,
+        simulatedGloves,
+        simulatedMask,
+        setSimulatedHelmet,
+        setSimulatedVest,
+        setSimulatedShoes,
+        setSimulatedGloves,
+        setSimulatedMask,
       }}
     >
       {children}

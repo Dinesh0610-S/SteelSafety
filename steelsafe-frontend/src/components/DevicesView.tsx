@@ -17,32 +17,18 @@ interface DeviceItem {
 }
 
 export function DevicesView() {
-  const { activePlantId } = usePlant();
-  const isCokeOven = activePlantId === 'plant_coke_oven';
+  const { activePlantId: _activePlantId } = usePlant();
 
   const devices = useMemo<DeviceItem[]>(() => {
-    if (isCokeOven) {
-      return [
-        { id: '1', name: 'CAM 01 - Coke Oven Battery 1', type: 'Camera', isReal: true, ip: '192.168.1.101', status: 'Online', health: 99, value: '30 FPS', zone: 'Coke Oven Battery 1' },
-        { id: '2', name: 'CAM 02 - Gas Collection Main', type: 'Camera', isReal: false, ip: '192.168.1.102', status: 'Online', health: 95, value: '30 FPS', zone: 'Gas Collection Main' },
-        { id: '3', name: 'CAM 03 - Quenching Tower', type: 'Camera', isReal: false, ip: '192.168.1.103', status: 'Online', health: 94, value: '30 FPS', zone: 'Quenching Tower' },
-        { id: '4', name: 'CAM 04 - Charging Area', type: 'Camera', isReal: false, ip: '192.168.1.104', status: 'Online', health: 91, value: '30 FPS', zone: 'Charging Area' },
-        { id: '5', name: 'CAM 05 - Control Room', type: 'Camera', isReal: false, ip: '192.168.1.105', status: 'Online', health: 89, value: '30 FPS', zone: 'Control Room' },
-        { id: '6', name: 'TEMP Sensor - Battery 1', type: 'Sensor', isReal: false, ip: '192.168.1.201', status: 'Online', health: 98, value: '320°C', zone: 'Coke Oven Battery 1' },
-        { id: '7', name: 'Gas Sensor - Main Battery', type: 'Sensor', isReal: false, ip: '192.168.1.202', status: 'Online', health: 97, value: 'Normal', zone: 'Gas Collection Main' }
-      ];
-    } else {
-      return [
-        { id: '1', name: 'CAM 01 - Reheating Furnace', type: 'Camera', isReal: false, ip: '192.168.2.101', status: 'Online', health: 98, value: '30 FPS', zone: 'Reheating Furnace' },
-        { id: '2', name: 'CAM 02 - Rolling Stand', type: 'Camera', isReal: false, ip: '192.168.2.102', status: 'Online', health: 96, value: '30 FPS', zone: 'Rolling Stand' },
-        { id: '3', name: 'CAM 03 - Cooling Bed', type: 'Camera', isReal: false, ip: '192.168.2.103', status: 'Online', health: 93, value: '30 FPS', zone: 'Cooling Bed' },
-        { id: '4', name: 'CAM 04 - Finishing Line', type: 'Camera', isReal: false, ip: '192.168.2.104', status: 'Online', health: 90, value: '30 FPS', zone: 'Finishing Line' },
-        { id: '5', name: 'CAM 05 - Mill Control Room', type: 'Camera', isReal: false, ip: '192.168.2.105', status: 'Online', health: 94, value: '30 FPS', zone: 'Mill Control Room' },
-        { id: '6', name: 'TEMP Sensor - Furnace', type: 'Sensor', isReal: false, ip: '192.168.2.201', status: 'Online', health: 99, value: '1150°C', zone: 'Reheating Furnace' },
-        { id: '7', name: 'Vibration Sensor - Mill Stand', type: 'Sensor', isReal: false, ip: '192.168.2.202', status: 'Online', health: 95, value: '0.4 mm/s', zone: 'Rolling Stand' }
-      ];
-    }
-  }, [isCokeOven]);
+    return [
+      { id: 'CAM01', name: 'CAM 01 - Coke Oven Battery', type: 'Camera', isReal: true, ip: '192.168.1.101', status: 'Online', health: 99, value: 'Laptop Webcam', zone: 'Coke Oven Battery' },
+      { id: 'CAM02', name: 'CAM 02 - Blast Furnace Zone', type: 'Camera', isReal: false, ip: '192.168.1.102', status: 'Online', health: 95, value: 'AI Camera - Recorded Feed', zone: 'Blast Furnace Zone' },
+      { id: 'CAM03', name: 'CAM 03 - Gas Cleaning Plant', type: 'Camera', isReal: false, ip: '192.168.1.103', status: 'Online', health: 94, value: 'AI Camera - Recorded Feed', zone: 'Gas Cleaning Plant' },
+      { id: 'SENSOR01', name: 'Gas Sensor - Multi Gas CO/H2S', type: 'Sensor', isReal: false, ip: '192.168.1.201', status: 'Online', health: 98, value: 'Normal', zone: 'Coke Oven Battery' },
+      { id: 'SENSOR02', name: 'Thermal Sensor - Core Battery', type: 'Sensor', isReal: false, ip: '192.168.1.202', status: 'Online', health: 97, value: 'Normal', zone: 'Blast Furnace Zone' },
+      { id: 'EDGE01', name: 'Jetson Edge Gateway', type: 'Edge Gateway', isReal: false, ip: '192.168.1.254', status: 'Online', health: 99, value: 'Active', zone: 'Control Center' },
+    ];
+  }, []);
 
   const [notification, setNotification] = useState<string | null>(null);
 
@@ -249,31 +235,19 @@ export function DevicesView() {
               <text x="90" y="75" fill="#475569" fontSize="6" fontWeight="bold" textAnchor="middle">ROBOT ZONE</text>
               <text x="160" y="75" fill="#475569" fontSize="6" fontWeight="bold" textAnchor="middle">LOADING BAY</text>
 
-              {/* Cameras & sensors placement nodes */}
-              {/* CAM 01 (Entrance) - Green */}
-              <circle cx="15" cy="20" r="3" fill="#10b981" className="animate-pulse" />
-              <text x="15" y="14" fill="#10b981" fontSize="4.5" fontWeight="black" textAnchor="middle">C01</text>
+              {/* Cameras & sensors placement nodes (CAM 01 - CAM 03) */}
+              {/* CAM 01 (Coke Oven Battery - LIVE LAPTOP WEBCAM) - pulsing bright green */}
+              <circle cx="25" cy="25" r="3.5" fill="#10b981" />
+              <circle cx="25" cy="25" r="6" fill="none" stroke="#10b981" strokeWidth="1" className="animate-ping opacity-60" />
+              <text x="25" y="18" fill="#10b981" fontSize="4.5" fontWeight="black" textAnchor="middle">C01</text>
               
-              {/* CAM 02 (Assembly - REAL WEBCAM) - pulsing bright green */}
-              <circle cx="75" cy="20" r="3.5" fill="#10b981" />
-              <circle cx="75" cy="20" r="6" fill="none" stroke="#10b981" strokeWidth="1" className="animate-ping opacity-60" />
-              <text x="75" y="14" fill="#10b981" fontSize="4.5" fontWeight="black" textAnchor="middle">C02</text>
+              {/* CAM 02 (Blast Furnace Zone - Recorded Feed) - Green */}
+              <circle cx="95" cy="25" r="3" fill="#10b981" />
+              <text x="95" y="18" fill="#10b981" fontSize="4.5" fontWeight="black" textAnchor="middle">C02</text>
               
-              {/* CAM 03 (Warehouse) - Green */}
-              <circle cx="135" cy="20" r="3" fill="#10b981" />
-              <text x="135" y="14" fill="#10b981" fontSize="4.5" fontWeight="black" textAnchor="middle">C03</text>
-              
-              {/* CAM 04 (Robot Zone) - Green */}
-              <circle cx="75" cy="65" r="3" fill="#10b981" />
-              <text x="75" y="59" fill="#10b981" fontSize="4.5" fontWeight="black" textAnchor="middle">C04</text>
-              
-              {/* CAM 05 (Boiler Room) - Green */}
-              <circle cx="15" cy="65" r="3" fill="#10b981" />
-              <text x="15" y="59" fill="#10b981" fontSize="4.5" fontWeight="black" textAnchor="middle">C05</text>
-              
-              {/* CAM 06 (Loading Bay) - Red Offline */}
-              <circle cx="135" cy="65" r="3" fill="#ef4444" />
-              <text x="135" y="59" fill="#ef4444" fontSize="4.5" fontWeight="black" textAnchor="middle">C06</text>
+              {/* CAM 03 (Gas Cleaning Plant - Recorded Feed) - Green */}
+              <circle cx="165" cy="25" r="3" fill="#10b981" />
+              <text x="165" y="18" fill="#10b981" fontSize="4.5" fontWeight="black" textAnchor="middle">C03</text>
             </svg>
           </div>
         </div>

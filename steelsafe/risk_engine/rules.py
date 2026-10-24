@@ -370,8 +370,25 @@ def evaluate_R7(ctx: RiskContext) -> RuleResult:
         if h2s_elevated:
             gas_msg.append(f"H2S={ctx.current_reading.h2s_ppm:.2f} ppm (>={T.H2S_SECONDARY_PPM} action level)")
 
+        missing_items = getattr(ctx, "cctv_ppe_items_missing", [])
+        if missing_items:
+            name_mapping = {
+                "hard_hat": "Helmet",
+                "helmet": "Helmet",
+                "safety_vest": "Safety Vest",
+                "vest": "Safety Vest",
+                "safety_shoes": "Safety Shoes (beta)",
+                "shoes": "Safety Shoes (beta)",
+                "gloves": "Gloves (beta)",
+                "mask": "Mask (beta)"
+            }
+            formatted_items = ", ".join(name_mapping.get(item, item.replace("_", " ").title()) for item in missing_items)
+            ppe_str = f"missing PPE ({formatted_items})"
+        else:
+            ppe_str = "missing proper PPE"
+
         explanation = (
-            f"[R7] CCTV camera in {ctx.zone_name} detected worker(s) present without proper PPE (hard hat) "
+            f"[R7] CCTV camera in {ctx.zone_name} detected worker(s) present with {ppe_str} "
             f"while gas is elevated: {'; '.join(gas_msg)}. "
             f"Active worker presence without PPE in a hazardous zone is an immediate safety violation."
         )

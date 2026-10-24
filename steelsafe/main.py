@@ -39,8 +39,9 @@ from data_generator.generator import run_generation
 from api.routes import (
     zones, sensors, permits, maintenance, 
     shifts, workers, admin, risk, chat, metrics, plants,
-    forecast, report
+    forecast, report, detection, live_monitoring_router
 )
+from detection.camera_sources import start_video_feeds_worker, stop_video_feeds_worker
 
 
 @asynccontextmanager
@@ -61,8 +62,11 @@ async def lifespan(app: FastAPI):
     else:
         print(f"[Startup] Database already seeded ({count} zones found). Skipping generation.")
 
+    # Start the background recorded video feeds processor (CAM02, CAM03)
+    start_video_feeds_worker()
+
     yield  # Server runs here
-    # (no teardown needed for SQLite)
+    stop_video_feeds_worker()
 
 
 app = FastAPI(
@@ -99,6 +103,13 @@ app.include_router(metrics.router,     prefix=API_PREFIX)
 app.include_router(plants.router,      prefix=API_PREFIX)
 app.include_router(forecast.router,    prefix=API_PREFIX)
 app.include_router(report.router,      prefix=API_PREFIX)
+app.include_router(detection.router,   prefix=API_PREFIX)
+
+# Live Monitoring and Dashboard cameras routers
+# Mounts /api/live/cameras, /api/live/frame/{id}, /api/live/stats, /api/live/system-health
+# Also mounts /api/dashboard/cameras as required
+app.include_router(live_monitoring_router.router, prefix="/api")
+app.include_router(live_monitoring_router.dashboard_router, prefix="/api")
 
 
 @app.get("/", tags=["Health"])

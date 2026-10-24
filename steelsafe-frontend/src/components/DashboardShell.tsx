@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { 
   Users, ShieldCheck, ShieldAlert, AlertTriangle, 
   Flame, AlertCircle, TrendingUp, ArrowUpRight,
@@ -9,7 +9,10 @@ import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, 
   PieChart, Pie, Cell
 } from 'recharts';
-import { useCamera, drawPredictions } from '../context/CameraContext';
+import { useCamera } from '../context/CameraContext';
+import { LiveWebcamCameraTile } from './camera/LiveWebcamCameraTile';
+import { RecordedFeedTile } from './camera/RecordedFeedTile';
+import type { CameraInfo } from './camera/RecordedFeedTile';
 
 interface DashboardShellProps {
   activePlantId: string;
@@ -51,36 +54,13 @@ const ZONE_TEMPERATURE_BASELINES: Record<string, number> = {
   "zone_cr2": 22.0,
 };
 
-const PLANT_ZONE_FALLBACKS: Record<string, Array<{ id: string; label: string; camNumber: string }>> = {
-  'plant_coke_oven': [
-    { id: "zone_cob1", label: "Coke Oven Battery 1", camNumber: "CAM 01" },
-    { id: "zone_gcm",  label: "Gas Collection Main",  camNumber: "CAM 02" },
-    { id: "zone_qt",   label: "Quenching Tower",       camNumber: "CAM 03" },
-    { id: "zone_ca",   label: "Charging Area",          camNumber: "CAM 04" },
-    { id: "zone_cr",   label: "Control Room",           camNumber: "CAM 05" },
-    { id: "zone_cob_e",label: "Coke Oven East",        camNumber: "CAM 06" },
-  ],
-  'plant_rolling_mill': [
-    { id: "zone_rhf",  label: "Reheating Furnace",   camNumber: "CAM 01" },
-    { id: "zone_rs",   label: "Rolling Stand",        camNumber: "CAM 02" },
-    { id: "zone_cb",   label: "Cooling Bed",          camNumber: "CAM 03" },
-    { id: "zone_fl",   label: "Finishing Line",       camNumber: "CAM 04" },
-    { id: "zone_cr2",  label: "Mill Control Room",    camNumber: "CAM 05" },
-    { id: "zone_rs_b", label: "Rolling Stand East",  camNumber: "CAM 06" },
-  ],
-};
-
 const CAMERA_MAP: Record<string, { label: string; camNumber: string }> = {
-  "zone_cob1": { label: "Coke Oven Battery 1", camNumber: "CAM 01" },
-  "zone_gcm":  { label: "Gas Collection Main",  camNumber: "CAM 02" },
-  "zone_qt":   { label: "Quenching Tower",       camNumber: "CAM 03" },
-  "zone_ca":   { label: "Charging Area",          camNumber: "CAM 04" },
-  "zone_cr":   { label: "Control Room",           camNumber: "CAM 05" },
-  "zone_rhf":  { label: "Reheating Furnace",     camNumber: "CAM 01" },
-  "zone_rs":   { label: "Rolling Stand",          camNumber: "CAM 02" },
-  "zone_cb":   { label: "Cooling Bed",            camNumber: "CAM 03" },
-  "zone_fl":   { label: "Finishing Line",         camNumber: "CAM 04" },
-  "zone_cr2":  { label: "Mill Control Room",      camNumber: "CAM 05" },
+  "CAM01": { label: "Coke Oven Battery", camNumber: "CAM 01" },
+  "CAM02": { label: "Blast Furnace Zone", camNumber: "CAM 02" },
+  "CAM03": { label: "Gas Cleaning Plant", camNumber: "CAM 03" },
+  "zone_cob1": { label: "Coke Oven Battery", camNumber: "CAM 01" },
+  "zone_ca":   { label: "Blast Furnace Zone", camNumber: "CAM 02" },
+  "zone_gcm":  { label: "Gas Cleaning Plant", camNumber: "CAM 03" },
 };
 
 const complianceTrendData = [
@@ -104,48 +84,71 @@ export function DashboardShell({
 
   const {
     webcamActive,
-    stream,
     totalWorkersDetected,
     violationWorkersCount,
-    predictions,
-    realCamZone
+    realCamZone,
   } = useCamera();
 
-  const dashboardVideoRef = useRef<HTMLVideoElement | null>(null);
-  const dashboardCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [cameras, setCameras] = useState<CameraInfo[]>([]);
 
-  // Sync stream to dashboard video element
-  useEffect(() => {
-    if (dashboardVideoRef.current) {
-      dashboardVideoRef.current.srcObject = stream;
-      if (stream) {
-        dashboardVideoRef.current.play().catch(e => console.warn("Failed playing dashboard video:", e));
+  const fetchDashboardCameras = useCallback(async () => {
+    try {
+      const camsRes = await fetch('/api/live/cameras');
+      if (camsRes.ok) {
+        setCameras(await camsRes.json());
       }
+    } catch (e) {
+      console.warn("Failed fetching dashboard cameras:", e);
     }
-  }, [stream]);
+  }, []);
 
-  // Canvas drawing loop for live predictions on Dashboard
   useEffect(() => {
-    if (!webcamActive || !dashboardVideoRef.current || !dashboardCanvasRef.current) return;
-    let animationFrameId: number;
-    let isRunning = true;
+    fetchDashboardCameras();
+    const interval = setInterval(fetchDashboardCameras, 2500);
+    return () => clearInterval(interval);
+  }, [fetchDashboardCameras]);
 
-    const renderLoop = () => {
-      if (!isRunning) return;
-      const video = dashboardVideoRef.current;
-      const canvas = dashboardCanvasRef.current;
-      if (video && canvas && video.readyState === 4) {
-        drawPredictions(canvas, predictions, video);
-      }
-      animationFrameId = requestAnimationFrame(renderLoop);
+  const cam01 = useMemo<CameraInfo>(() => {
+    return cameras.find(c => c.id === 'CAM01') || {
+      id: 'CAM01',
+      label: 'CAM 01 - Coke Oven Battery',
+      zone: 'Coke Oven Battery',
+      source_type: 'webcam',
+      is_live: webcamActive,
+      feed_badge: 'LIVE WEBCAM',
+      status: webcamActive ? 'Online' : 'Offline',
+      status_color: webcamActive ? '#10b981' : '#ef4444',
+      frame_url: '/api/live/frame/CAM01',
     };
+  }, [cameras, webcamActive]);
 
-    renderLoop();
-    return () => {
-      isRunning = false;
-      cancelAnimationFrame(animationFrameId);
+  const cam02 = useMemo<CameraInfo>(() => {
+    return cameras.find(c => c.id === 'CAM02') || {
+      id: 'CAM02',
+      label: 'CAM 02 - Blast Furnace Zone',
+      zone: 'Blast Furnace Zone',
+      source_type: 'video_file',
+      is_live: false,
+      feed_badge: 'RECORDED FEED',
+      status: 'Online',
+      status_color: '#10b981',
+      frame_url: '/api/live/frame/CAM02',
     };
-  }, [webcamActive, predictions]);
+  }, [cameras]);
+
+  const cam03 = useMemo<CameraInfo>(() => {
+    return cameras.find(c => c.id === 'CAM03') || {
+      id: 'CAM03',
+      label: 'CAM 03 - Gas Cleaning Plant',
+      zone: 'Gas Cleaning Plant',
+      source_type: 'video_file',
+      is_live: false,
+      feed_badge: 'RECORDED FEED',
+      status: 'Online',
+      status_color: '#10b981',
+      frame_url: '/api/live/frame/CAM03',
+    };
+  }, [cameras]);
 
   // 1. Process risks & parse snapshots
   const parsedRisks = useMemo(() => {
@@ -231,7 +234,13 @@ export function DashboardShell({
   }, [safeWorkersCount, totalWorkersCount]);
 
   // Card 3: PPE Violations
-  const activePpeViolationsCount = activePPEViolations.length;
+  const activePpeViolationsCount = useMemo(() => {
+    const otherZonesCount = activePPEViolations.filter(v => v.zone_id !== realCamZone).length;
+    const realZoneBackendCount = activePPEViolations.filter(v => v.zone_id === realCamZone).length;
+    const realZoneLiveCount = webcamActive ? violationWorkersCount : 0;
+    return otherZonesCount + Math.max(realZoneBackendCount, realZoneLiveCount);
+  }, [activePPEViolations, webcamActive, violationWorkersCount, realCamZone]);
+
   const ppeViolationsTodayCount = useMemo(() => {
     if (!t0) return activePpeViolationsCount;
     // Count violations logged since shift start t0
@@ -240,14 +249,25 @@ export function DashboardShell({
 
   // Card 4: Active Compliance Gaps (replaces Restricted Area Alerts)
   const activeComplianceGapsCount = useMemo(() => {
-    return deviations.filter(d => !d.resolved).length;
-  }, [deviations]);
+    let missingCount = 0;
+    activePPEViolations.forEach(v => {
+      if (v.status === 'open') {
+        missingCount += (v.ppe_items_missing?.length || 1);
+      }
+    });
+    return missingCount;
+  }, [activePPEViolations]);
 
   const complianceGapsTodayCount = useMemo(() => {
-    if (!t0) return activeComplianceGapsCount;
-    // Count deviations logged since shift start t0
-    return deviations.filter(d => new Date(d.timestamp) >= t0).length;
-  }, [deviations, t0, activeComplianceGapsCount]);
+    let count = 0;
+    ppeViolations.forEach(v => {
+      const isToday = !t0 || new Date(v.timestamp) >= t0;
+      if (isToday) {
+        count += (v.ppe_items_missing?.length || 1);
+      }
+    });
+    return count;
+  }, [ppeViolations, t0]);
 
   // Card 5: Gas / Thermal Alerts (replaces Fire/Smoke Alerts)
   // Count of zones with elevated gas (CO >= 35, H2S >= 5) or high temp (Temp >= baseline + 50)
@@ -277,111 +297,7 @@ export function DashboardShell({
     return parsedRisks.filter(r => r.risk_level === 'critical' || r.risk_level === 'high').length;
   }, [parsedRisks]);
 
-  // Dynamic Camera Feeds mapping live telemetry
-  const dynamicCameraFeeds = useMemo(() => {
-    const feeds: any[] = [];
-    // Sort so realCamZone (CAM 01 - real camera) is always first; then take up to 6
-    const zones = [...parsedRisks].sort((a, b) => {
-      if (a.zone_id === realCamZone) return -1;
-      if (b.zone_id === realCamZone) return 1;
-      return 0;
-    }).slice(0, 6);
 
-    zones.forEach((zone, idx) => {
-      const zoneId = zone.zone_id;
-      const isRealCam = zoneId === realCamZone;
-      // Use CAMERA_MAP for real zone name — fall back gracefully if unmapped
-      const mapInfo = CAMERA_MAP[zoneId] || { label: zone.zone_id.replace('zone_', '').replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()), camNumber: `CAM 0${idx + 1}` };
-      
-      const activePPE = ppeViolations.filter(v => v.status === 'open' && v.zone_id === zoneId);
-      const activeDev = deviations.filter(d => !d.resolved && d.zone_id === zoneId);
-      
-      const co = zone.snap?.co_ppm || 0;
-      const h2s = zone.snap?.h2s_ppm || 0;
-      const temp = zone.snap?.temperature_c || 0;
-      const tempBaseline = ZONE_TEMPERATURE_BASELINES[zoneId] || 0;
-      const isGasThermal = co >= 35.0 || h2s >= 5.0 || (tempBaseline > 0 && (temp - tempBaseline) >= 50.0);
-
-      let status = 'SAFE';
-      let statusColor = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
-      let boxColor = 'border-emerald-500 text-emerald-400';
-      let boxLabel = 'Worker: Compliant';
-
-      if (isRealCam && webcamActive) {
-        status = violationWorkersCount > 0 ? 'NO HAT' : 'SAFE';
-        statusColor = violationWorkersCount > 0
-          ? 'bg-red-500/20 text-red-400 border-red-500/30'
-          : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
-        boxColor = violationWorkersCount > 0 ? 'border-red-500 text-red-400' : 'border-emerald-500 text-emerald-400';
-        boxLabel = violationWorkersCount > 0 ? `Worker: Missing Hard Hat (${totalWorkersDetected} in frame)` : `Worker: Compliant (${totalWorkersDetected} in frame)`;
-      } else if (activePPE.length > 0) {
-        status = 'NO VEST';
-        statusColor = 'bg-red-500/20 text-red-400 border-red-500/30';
-        boxColor = 'border-red-500 text-red-400';
-        boxLabel = `Worker: Missing ${activePPE[0].ppe_items_missing?.join(', ') || 'Vest'}`;
-      } else if (isGasThermal) {
-        status = 'SMOKE DETECTED';
-        statusColor = 'bg-amber-500/20 text-amber-400 border-amber-500/30';
-        boxColor = 'border-amber-500 text-amber-400';
-        boxLabel = 'Operator: High Heat/Gas';
-      } else if (activeDev.length > 0) {
-        status = 'RESTRICTED AREA';
-        statusColor = 'bg-orange-500/20 text-orange-400 border-orange-500/30';
-        boxColor = 'border-orange-500 text-orange-400';
-        boxLabel = 'Worker: Restricted Zone';
-      }
-
-      feeds.push({
-        id: zoneId,
-        name: `${mapInfo.camNumber} - ${mapInfo.label}`,
-        status,
-        statusColor,
-        isWebcam: isRealCam,
-        workers: [
-          {
-            id: 1,
-            label: boxLabel,
-            x: idx % 2 === 0 ? 'left-[30%] top-[40%]' : 'left-[45%] top-[35%]',
-            w: 'w-14 h-28',
-            color: boxColor,
-          }
-        ]
-      });
-    });
-
-    // Fill remaining slots using real plant zone names — never show "Loading Bay"
-    if (feeds.length < 6) {
-      const plantFallbacks = PLANT_ZONE_FALLBACKS[activePlantId] || PLANT_ZONE_FALLBACKS['plant_coke_oven'];
-      const usedIds = new Set(feeds.map(f => f.id));
-      for (const fb of plantFallbacks) {
-        if (feeds.length >= 6) break;
-        if (usedIds.has(fb.id)) continue;
-        const isRealCam = fb.id === realCamZone;
-        feeds.push({
-          id: fb.id,
-          name: `${fb.camNumber} - ${fb.label}`,
-          status: (isRealCam && webcamActive) ? (violationWorkersCount > 0 ? 'NO HAT' : 'SAFE') : 'SAFE',
-          statusColor: (isRealCam && webcamActive)
-            ? (violationWorkersCount > 0 ? 'bg-red-500/20 text-red-400 border-red-500/30' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30')
-            : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
-          isWebcam: isRealCam,
-          workers: [
-            {
-              id: 1,
-              label: (isRealCam && webcamActive)
-                ? (violationWorkersCount > 0 ? `Worker: Missing Hard Hat (${totalWorkersDetected} in frame)` : `Worker: Compliant (${totalWorkersDetected} in frame)`)
-                : 'Worker: Compliant',
-              x: 'left-[40%] top-[40%]',
-              w: 'w-12 h-26',
-              color: (isRealCam && webcamActive && violationWorkersCount > 0) ? 'border-red-500 text-red-400' : 'border-emerald-500 text-emerald-400',
-            }
-          ]
-        });
-      }
-    }
-
-    return feeds;
-  }, [parsedRisks, ppeViolations, deviations, activePlantId, webcamActive, violationWorkersCount, totalWorkersDetected, realCamZone]);
 
   // Dynamic Recent Alerts mapping actual events, fallback to mockup to retain visual specs
   const dynamicRecentAlerts = useMemo(() => {
@@ -790,7 +706,7 @@ export function DashboardShell({
           <div className="absolute bottom-0 left-0 right-0 h-1 bg-purple-500 scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left" />
         </div>
 
-        {/* Card 6: Fall Incidents */}
+        {/* Card 6: Critical Zones */}
         <div className="card-soft-base bg-theme-card border border-theme-border p-4 flex flex-col gap-2 relative overflow-hidden group hover:border-amber-500/50 rounded-2xl">
           <div className="flex items-center justify-between">
             <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
@@ -798,12 +714,12 @@ export function DashboardShell({
             </div>
           </div>
           <div>
-            <p className="text-[10px] uppercase font-bold text-theme-text-muted tracking-wider">Fall Incidents</p>
+            <p className="text-[10px] uppercase font-bold text-theme-text-muted tracking-wider">Critical Zones</p>
             <h3 className="text-3xl font-black font-mono tracking-tight text-theme-text mt-0.5">
               {activeCriticalZonesCount}
             </h3>
             <div className="flex items-center gap-1 mt-1 text-[9px] font-mono font-semibold text-theme-text-muted">
-              <span>↗ {activeCriticalZonesCount} Today</span>
+              <span>↗ {activeCriticalZonesCount} Active Now</span>
             </div>
           </div>
           <div className="absolute bottom-0 left-0 right-0 h-1 bg-amber-500 scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left" />
@@ -826,89 +742,35 @@ export function DashboardShell({
               </a>
             </div>
 
-            {/* 6 Cameras in 3x2 Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {dynamicCameraFeeds.map(cam => (
-                <div key={cam.id} className="relative aspect-video rounded-2xl border border-slate-800 bg-[#0d121f] overflow-hidden group shadow-inner">
-                  {/* Grid Lines Overlay */}
-                  <div className="absolute inset-0 bg-[linear-gradient(rgba(18,24,38,0)_95%,rgba(0,0,0,0.35)_95%),linear-gradient(90deg,rgba(18,24,38,0)_95%,rgba(0,0,0,0.35)_95%)] bg-[size:20px_20px] pointer-events-none opacity-30" />
-                  
-                  {/* Subtle CRT Scanner bar */}
-                  <div className="absolute inset-x-0 top-0 h-0.5 bg-emerald-500/10 pointer-events-none animate-scanline" />
+            {/* 3-Camera Layout: CAM01 (Left ~60%), CAM02 & CAM03 stacked (Right) */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+              {/* Left Column: CAM 01 (Live Laptop Webcam ~60% width) */}
+              <div className="lg:col-span-7 xl:col-span-7">
+                <LiveWebcamCameraTile
+                  cameraId={cam01.id}
+                  label={cam01.label}
+                  zone={cam01.zone}
+                  onSelectCamera={() => {
+                    window.location.hash = '#live-monitoring';
+                  }}
+                />
+              </div>
 
-                  {/* Camera backdrop — shows correct label per tile type */}
-                  {!cam.isWebcam || !webcamActive ? (
-                    <div className="absolute inset-0 bg-gradient-to-br from-[#121c33] via-[#090e1a] to-[#070b14] flex flex-col items-center justify-center gap-1.5">
-                      <span className="text-[8px] font-mono font-bold text-slate-500 select-none uppercase tracking-widest">
-                        {cam.isWebcam ? 'Real Hardware Camera' : 'Simulated Feed'}
-                      </span>
-                      <span className="text-[6px] font-mono text-slate-600 select-none">
-                        {cam.isWebcam ? 'Standby — Inactive' : 'Risk engine data only'}
-                      </span>
-                    </div>
-                  ) : null}
-
-                  {/* Real Webcam feed rendering */}
-                  {cam.isWebcam && (
-                    <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
-                      <video
-                        ref={dashboardVideoRef}
-                        autoPlay
-                        playsInline
-                        muted
-                        className={`absolute top-0 left-0 w-full h-full object-cover scale-x-[-1] ${webcamActive ? 'block' : 'hidden'}`}
-                      />
-                      <canvas
-                        ref={dashboardCanvasRef}
-                        className={`absolute top-0 left-0 w-full h-full object-cover scale-x-[-1] ${webcamActive ? 'block' : 'hidden'}`}
-                      />
-                    </div>
-                  )}
-
-                  {/* Simulated Bounding Box (inactive webcam or simulated tiles) */}
-                  {(!cam.isWebcam || !webcamActive) && cam.workers.map((w: any, idx: number) => (
-                    <div key={idx} className={`absolute ${w.x} ${w.w} border-2 ${w.color} rounded-lg flex flex-col justify-between p-1 bg-black/10 backdrop-blur-[0.5px] animate-pulse`}>
-                      <span className="text-[7px] font-bold font-mono px-1 rounded bg-black/60 text-white truncate max-w-full leading-none">
-                        {w.label}
-                      </span>
-                    </div>
-                  ))}
-
-                  {/* Camera Header Banner */}
-                  <div className="absolute top-2 left-2 right-2 flex items-center justify-between pointer-events-none select-none z-10">
-                    <span className="text-[8px] font-mono font-extrabold text-white px-2 py-0.5 bg-black/60 rounded backdrop-blur-sm">
-                      {cam.name}
-                    </span>
-                    <div className="flex items-center gap-1">
-                      {/* Real hardware/LIVE/STANDBY badge — only on CAM 01 */}
-                      {cam.isWebcam ? (
-                        webcamActive ? (
-                          <span className="text-[6px] font-mono font-extrabold px-1.5 py-0.5 rounded border backdrop-blur-sm bg-red-500/20 text-red-400 border-red-500/40 animate-pulse flex items-center gap-1">
-                            <span className="h-1 w-1 rounded-full bg-red-500 animate-ping" />
-                            LIVE
-                          </span>
-                        ) : (
-                          <span className="text-[6px] font-mono font-extrabold px-1.5 py-0.5 rounded border backdrop-blur-sm bg-amber-500/20 text-amber-400 border-amber-500/40">
-                            STANDBY
-                          </span>
-                        )
-                      ) : (
-                        <span className="text-[6px] font-mono font-extrabold px-1.5 py-0.5 rounded border backdrop-blur-sm bg-slate-800/80 text-slate-500 border-slate-600/40">
-                          SIM
-                        </span>
-                      )}
-                      <span className={`text-[7px] font-mono font-extrabold px-1.5 py-0.5 rounded border backdrop-blur-sm ${cam.statusColor}`}>
-                        {cam.status}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Blinking Live indicator bottom right */}
-                  <div className="absolute bottom-2 right-2 flex items-center gap-1 pointer-events-none select-none z-10">
-                    <span className={`h-1.5 w-1.5 rounded-full animate-pulse ${cam.isWebcam && webcamActive ? 'bg-red-500' : 'bg-emerald-500'}`} />
-                  </div>
-                </div>
-              ))}
+              {/* Right Column: Stacked Recorded Feeds (CAM 02 & CAM 03) */}
+              <div className="lg:col-span-5 xl:col-span-5 flex flex-col gap-5">
+                <RecordedFeedTile
+                  camera={cam02}
+                  onSelectCamera={() => {
+                    window.location.hash = '#live-monitoring';
+                  }}
+                />
+                <RecordedFeedTile
+                  camera={cam03}
+                  onSelectCamera={() => {
+                    window.location.hash = '#live-monitoring';
+                  }}
+                />
+              </div>
             </div>
           </div>
 

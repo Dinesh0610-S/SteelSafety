@@ -29,7 +29,7 @@ def test_compliance_drift():
         # 2. Check that at least 3 deliberate gaps are flagged
         cal_overdue_zones = [d.zone_id for d in all_devs if d.deviation_type == "Gas Detector Calibration Overdue"]
         audit_overdue_zones = [d.zone_id for d in all_devs if d.deviation_type == "Weekly PPE Audit Overdue"]
-        med_overdue_types = [d for d in all_devs if d.deviation_type == "Overdue Periodic Medical Examination"]
+        med_overdue_types = [d for d in all_devs if "Overdue Periodic Medical Examination" in d.deviation_type]
         
         print(f"[Test] Calibration Overdue Zones: {cal_overdue_zones}")
         print(f"[Test] PPE Audit Overdue Zones: {audit_overdue_zones}")

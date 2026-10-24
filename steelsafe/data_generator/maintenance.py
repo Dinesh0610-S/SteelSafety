@@ -112,7 +112,7 @@ def generate_maintenance_logs(
     prefix = "COK" if "coke" in plant_id else "RML"
 
     # Calibration compliance: mix of compliant and overdue entries
-    calibration_ages = [15, 12, 10, 45, 40]  # days ago; >30 = overdue
+    calibration_ages = [15, 12, 45, 40, 10]  # days ago; >30 = overdue
     for idx, zone_id in enumerate(zone_ids):
         days_ago = calibration_ages[idx % len(calibration_ages)]
         log_time = t0 - timedelta(days=days_ago)

@@ -98,8 +98,7 @@ def run_compliance_check(db: Session, current_time: datetime, plant_config: dict
             existing = db.query(ComplianceDeviation).filter(
                 ComplianceDeviation.plant_id == plant_id,
                 ComplianceDeviation.zone_id == zone_id,
-                ComplianceDeviation.deviation_type == dev_type,
-                ComplianceDeviation.resolved == False
+                ComplianceDeviation.deviation_type == dev_type
             ).first()
 
             if not existing:
@@ -167,8 +166,7 @@ def run_compliance_check(db: Session, current_time: datetime, plant_config: dict
             existing = db.query(ComplianceDeviation).filter(
                 ComplianceDeviation.plant_id == plant_id,
                 ComplianceDeviation.zone_id == zone_id,
-                ComplianceDeviation.deviation_type == dev_type,
-                ComplianceDeviation.resolved == False
+                ComplianceDeviation.deviation_type == dev_type
             ).first()
 
             if not existing:
@@ -238,8 +236,7 @@ def run_compliance_check(db: Session, current_time: datetime, plant_config: dict
             existing = db.query(ComplianceDeviation).filter(
                 ComplianceDeviation.plant_id == plant_id,
                 ComplianceDeviation.zone_id == zone_id,
-                ComplianceDeviation.deviation_type == dev_type,
-                ComplianceDeviation.resolved == False
+                ComplianceDeviation.deviation_type == dev_type
             ).first()
 
             if not existing:
@@ -303,8 +300,7 @@ def run_compliance_check(db: Session, current_time: datetime, plant_config: dict
                 existing = db.query(ComplianceDeviation).filter(
                     ComplianceDeviation.plant_id == plant_id,
                     ComplianceDeviation.zone_id == zone_id,
-                    ComplianceDeviation.deviation_type == dev_type,
-                    ComplianceDeviation.resolved == False
+                    ComplianceDeviation.deviation_type == dev_type
                 ).first()
 
                 if not existing:

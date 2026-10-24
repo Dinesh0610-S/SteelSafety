@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   TrendingDown, Award, Clock, ShieldCheck
 } from 'lucide-react';
@@ -29,18 +29,12 @@ interface ComplianceDeviation {
 }
 
 const ZONE_NAME_MAP: Record<string, string> = {
-  // Coke Oven Battery (plant_a)
-  "zone_cob1": "Coke Oven Battery 1",
-  "zone_gcm": "Gas Collection Main",
-  "zone_qt": "Quenching Tower",
-  "zone_ca": "Charging Area",
-  "zone_cr": "Control Room",
-  // Rolling Mill Complex (plant_b)
-  "zone_rhf": "Reheating Furnace",
-  "zone_rs": "Rolling Stand",
-  "zone_cb": "Cooling Bed",
-  "zone_fl": "Finishing Line",
-  "zone_cr2": "Mill Control Room",
+  "CAM01": "Coke Oven Battery",
+  "CAM02": "Blast Furnace Zone",
+  "CAM03": "Gas Cleaning Plant",
+  "zone_cob1": "Coke Oven Battery",
+  "zone_ca": "Blast Furnace Zone",
+  "zone_gcm": "Gas Cleaning Plant",
 };
 
 interface GaugeCardProps {
@@ -124,28 +118,54 @@ function MetricCard({ title, value, icon: Icon, subtext, subColor = 'text-emeral
   );
 }
 
+function toNaiveISOString(date: Date): string {
+  const pad = (n: number) => n < 10 ? '0' + n : n;
+  const padMs = (n: number) => {
+    if (n < 10) return '00' + n;
+    if (n < 100) return '0' + n;
+    return n;
+  };
+  return date.getFullYear() +
+    '-' + pad(date.getMonth() + 1) +
+    '-' + pad(date.getDate()) +
+    'T' + pad(date.getHours()) +
+    ':' + pad(date.getMinutes()) +
+    ':' + pad(date.getSeconds()) +
+    '.' + padMs(date.getMilliseconds());
+}
+
 export function SafetyAnalyticsView({ activePlantId, violations, deviations }: SafetyAnalyticsViewProps) {
   const [loading, setLoading] = useState<boolean>(true);
   const [riskHistory, setRiskHistory] = useState<any[]>([]);
 
-  // Fetch risk history to build heatmap
-  const fetchRiskHistory = useCallback(async () => {
-    try {
-      // Sweep history limits
-      const isoStr = new Date().toISOString();
-      const res = await fetch(`/api/v1/risk/history?plant_id=${activePlantId}&end=${encodeURIComponent(isoStr)}&limit=1000`);
-      if (res.ok) {
-        setRiskHistory(await res.json());
-      }
-    } catch (_) {}
-  }, [activePlantId]);
-
   useEffect(() => {
+    let active = true;
     setLoading(true);
-    fetchRiskHistory().finally(() => setLoading(false));
+
+    const fetchRiskHistory = async () => {
+      try {
+        const isoStr = toNaiveISOString(new Date());
+        const res = await fetch(`/api/v1/risk/history?plant_id=${activePlantId}&end=${encodeURIComponent(isoStr)}&limit=100`);
+        if (res.ok && active) {
+          const data = await res.json();
+          setRiskHistory(data);
+        }
+      } catch (_) {
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchRiskHistory();
     const interval = setInterval(fetchRiskHistory, 5000);
-    return () => clearInterval(interval);
-  }, [fetchRiskHistory]);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [activePlantId]);
 
   // Combined metrics mapping
   const metrics = useMemo(() => {

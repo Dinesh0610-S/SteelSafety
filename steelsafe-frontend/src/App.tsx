@@ -39,22 +39,24 @@ function DashboardContent() {
   const [acknowledgedAlerts, setAcknowledgedAlerts] = useState<Record<string, number>>({});
   // PPE violation state — polled from backend every 3 s
   const [ppeViolations, setPpeViolations] = useState<PPEViolationEvent[]>([]);
-  const [ppeOpenCount, setPpeOpenCount] = useState<number>(0);
+
 
   // Compliance deviations state for score calculations
   const [deviations, setDeviations] = useState<any[]>([]);
-  useEffect(() => {
+
+  const fetchDeviations = useCallback(async () => {
     if (!activePlantId) return;
-    const fetchDevs = async () => {
-      try {
-        const res = await fetch(`/api/v1/risk/compliance/deviations?plant_id=${activePlantId}`);
-        if (res.ok) setDeviations(await res.json());
-      } catch (_) {}
-    };
-    fetchDevs();
-    const interval = setInterval(fetchDevs, 3000);
-    return () => clearInterval(interval);
+    try {
+      const res = await fetch(`/api/v1/risk/compliance/deviations?plant_id=${activePlantId}`);
+      if (res.ok) setDeviations(await res.json());
+    } catch (_) {}
   }, [activePlantId]);
+
+  useEffect(() => {
+    fetchDeviations();
+    const interval = setInterval(fetchDeviations, 3000);
+    return () => clearInterval(interval);
+  }, [fetchDeviations]);
 
   // Reset selected employee/camera/alert when navigating tabs
   useEffect(() => {
@@ -124,7 +126,6 @@ function DashboardContent() {
       if (res.ok) {
         const data: PPEViolationEvent[] = await res.json();
         setPpeViolations(data);
-        setPpeOpenCount(data.filter(v => v.status === 'open').length);
       }
     } catch (_) {}
   }, [activePlantId]);
@@ -140,31 +141,37 @@ function DashboardContent() {
     await fetchViolations();
   }, [fetchViolations]);
 
-  const handleResolveViolation = useCallback(async (id: number) => {
-    await fetch(`/api/v1/risk/ppe/violations/${id}/resolve`, { method: 'POST' });
-    await fetchViolations();
-  }, [fetchViolations]);
+  const handleResolveAlert = useCallback(async (id: any, source: string) => {
+    if (source === 'ppe') {
+      const res = await fetch(`/api/v1/risk/ppe/violations/${id}/resolve`, { method: 'POST' });
+      if (!res.ok) {
+        throw new Error(`Failed to resolve PPE violation (status: ${res.status})`);
+      }
+      localStorage.setItem(`steelsafe_resolved_at_ppe_${id}`, new Date().toLocaleString());
+      localStorage.setItem(`steelsafe_resolved_by_ppe_${id}`, 'Safety Operator');
+      await fetchViolations();
+    } else if (source === 'deviation') {
+      const res = await fetch(`/api/v1/risk/compliance/deviations/${id}/resolve`, { method: 'POST' });
+      if (!res.ok) {
+        throw new Error(`Failed to resolve compliance deviation (status: ${res.status})`);
+      }
+      localStorage.setItem(`steelsafe_resolved_at_dev_${id}`, new Date().toLocaleString());
+      localStorage.setItem(`steelsafe_resolved_by_dev_${id}`, 'Safety Operator');
+      await fetchDeviations();
+    } else if (source === 'mock') {
+      localStorage.setItem(`steelsafe_resolved_${id}`, 'true');
+      localStorage.setItem(`steelsafe_resolved_at_${id}`, new Date().toLocaleString());
+      localStorage.setItem(`steelsafe_resolved_by_${id}`, 'Safety Operator');
+    }
+  }, [fetchViolations, fetchDeviations]);
 
   const handlePPEViolation = useCallback((event: PPEViolationEvent) => {
     setPpeViolations(prev => {
       const idx = prev.findIndex(v => v.id === event.id);
       if (idx !== -1) {
-        // Update in-place — adjust counter only if status actually changed
-        const old = prev[idx];
-        if (old.status !== event.status) {
-          if (event.status === 'resolved' || event.status === 'acknowledged') {
-            setPpeOpenCount(c => Math.max(0, c - 1));
-          } else if (event.status === 'open') {
-            setPpeOpenCount(c => c + 1);
-          }
-        }
         const updated = [...prev];
         updated[idx] = event;
         return updated;
-      }
-      // Brand-new event
-      if (event.status === 'open') {
-        setPpeOpenCount(c => c + 1);
       }
       return [event, ...prev];
     });
@@ -274,6 +281,10 @@ function DashboardContent() {
     return Math.max(0, Math.min(100, Math.round(score)));
   }, [plantData.currentRisks, ppeViolations, deviations]);
 
+  const openAlertsCount = useMemo(() => {
+    return ppeViolations.filter(v => v.status === 'open').length;
+  }, [ppeViolations]);
+
   const scoreLabel = useMemo(() => {
     if (overallSafetyScore >= 90) return { text: "Excellent", color: "text-emerald-500" };
     if (overallSafetyScore >= 80) return { text: "Good", color: "text-amber-500" };
@@ -284,7 +295,7 @@ function DashboardContent() {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'live-monitoring', label: 'Live Monitoring', icon: Eye },
     { id: 'factory-map', label: 'Factory Map', icon: Map },
-    { id: 'alerts', label: 'Alerts', icon: Bell, badge: ppeOpenCount },
+    { id: 'alerts', label: 'Alerts', icon: Bell, badge: openAlertsCount },
     { id: 'safety-rag', label: 'Safety AI Chat', icon: MessageSquare },
     { id: 'ppe-compliance', label: 'PPE Compliance', icon: ShieldCheck },
     { id: 'safety-analytics', label: 'Safety Analytics', icon: BarChart3 },
@@ -355,13 +366,13 @@ function DashboardContent() {
                   <item.icon className="h-4.5 w-4.5 shrink-0" />
                   <span>{item.label}</span>
                 </div>
-                {item.id === 'alerts' && ppeOpenCount > 0 && (
+                {item.id === 'alerts' && openAlertsCount > 0 && (
                   <span className={`px-2 py-0.5 rounded-full text-[9px] font-mono font-black ${
                     activeNav === item.id 
                       ? 'bg-slate-950 text-emerald-400' 
                       : 'bg-red-500 text-white animate-pulse'
                   }`}>
-                    {ppeOpenCount}
+                    {openAlertsCount}
                   </span>
                 )}
               </button>
@@ -419,9 +430,9 @@ function DashboardContent() {
                 className="p-2.5 rounded-2xl bg-theme-bg-alt border border-theme-border text-theme-text-secondary hover:text-theme-text hover:bg-theme-card-hover shadow-sm transition-all flex items-center justify-center relative active:scale-95"
               >
                 <Bell className="h-4.5 w-4.5" />
-                {ppeOpenCount > 0 && (
+                {openAlertsCount > 0 && (
                   <span className="absolute -top-1.5 -right-1.5 h-4.5 w-4.5 bg-red-500 text-white text-[8px] font-black rounded-full flex items-center justify-center animate-bounce">
-                    {ppeOpenCount}
+                    {openAlertsCount}
                   </span>
                 )}
               </button>
@@ -521,7 +532,7 @@ function DashboardContent() {
             selectedAlert ? (
               <IncidentDetailsView
                 alert={selectedAlert}
-                onResolve={handleResolveViolation}
+                onResolve={handleResolveAlert}
                 onBack={() => setSelectedAlert(null)}
               />
             ) : (
@@ -529,8 +540,11 @@ function DashboardContent() {
                 violations={ppeViolations}
                 deviations={deviations}
                 onAcknowledge={handleAcknowledgeViolation}
-                onResolve={handleResolveViolation}
-                onRefresh={fetchViolations}
+                onResolve={handleResolveAlert}
+                onRefresh={() => {
+                  fetchViolations();
+                  fetchDeviations();
+                }}
                 onSelectAlert={(a) => setSelectedAlert(a)}
               />
             )
