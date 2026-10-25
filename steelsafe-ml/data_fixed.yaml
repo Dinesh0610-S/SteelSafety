@@ -1,0 +1,6 @@
+path: C:/Users/DINESHMANI/Desktop/Pictures/Safesteel/steelsafe-ml/Helmet - Vest.v3i.yolov8
+train: C:/Users/DINESHMANI/Desktop/Pictures/Safesteel/steelsafe-ml/Helmet - Vest.v3i.yolov8/train/images
+val: C:/Users/DINESHMANI/Desktop/Pictures/Safesteel/steelsafe-ml/Helmet - Vest.v3i.yolov8/valid/images
+test: C:/Users/DINESHMANI/Desktop/Pictures/Safesteel/steelsafe-ml/Helmet - Vest.v3i.yolov8/test/images
+nc: 2
+names: [Helmet, Vest]

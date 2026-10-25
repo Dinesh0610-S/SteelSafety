@@ -1,0 +1,40 @@
+# Python Virtual Environments
+.venv/
+*/.venv/
+env/
+venv/
+ENV/
+
+# Python Cache
+__pycache__/
+*/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Machine Learning Checkpoints and Artifacts
+*.pt
+*.pth
+*.onnx
+steelsafe-ml/runs/
+runs/
+*.log
+
+# Large Datasets
+steelsafe-ml/dataset/
+steelsafe-ml/Helmet - Vest.v3i.yolov8/
+*.zip
+*.tar.gz
+
+# Node / Frontend
+node_modules/
+*/node_modules/
+dist/
+*/dist/
+.next/
+
+# IDE / System
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

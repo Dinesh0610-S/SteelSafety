@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a0b12"/>
+      <stop offset="100%" stop-color="#181528"/>
+    </linearGradient>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c084fc"/>
+      <stop offset="50%" stop-color="#9333ea"/>
+      <stop offset="100%" stop-color="#6b21a8"/>
+    </linearGradient>
+    <linearGradient id="glowGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#ef4444"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="16" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Background Rounded Canvas -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)"/>
+  <rect width="504" height="504" x="4" y="4" rx="108" fill="none" stroke="#a855f7" stroke-opacity="0.3" stroke-width="4"/>
+
+  <!-- Glowing Industrial Shield -->
+  <path d="M256 64 L396 116 C396 264 256 392 256 424 C256 392 116 264 116 116 Z"
+        fill="url(#shieldGrad)"
+        filter="url(#glow)"/>
+
+  <!-- Inner Dark Core -->
+  <path d="M256 96 L368 138 C368 252 256 358 256 384 C256 358 144 252 144 138 Z"
+        fill="#0f1017"/>
+
+  <!-- Stylized Molten Ember Spark -->
+  <circle cx="256" cy="180" r="18" fill="url(#glowGrad)" filter="url(#glow)"/>
+
+  <!-- Stylized Safety Checkmark -->
+  <path d="M208 248 L244 284 L312 212"
+        fill="none"
+        stroke="#ffffff"
+        stroke-width="26"
+        stroke-linecap="round"
+        stroke-linejoin="round"/>
+</svg>

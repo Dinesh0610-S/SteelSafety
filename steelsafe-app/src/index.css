@@ -1,0 +1,132 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Sora", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-border: var(--border);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-sky: var(--sky);
+  --color-lavender: var(--lavender);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+
+  --shadow-soft: 0 10px 40px -12px color-mix(in oklab, var(--primary) 25%, transparent);
+  --shadow-glow: 0 0 0 1px color-mix(in oklab, var(--primary) 30%, transparent), 0 12px 40px -8px color-mix(in oklab, var(--primary) 45%, transparent);
+}
+
+:root {
+  --radius: 0.875rem;
+  --primary: oklch(56% 0.23 285);
+  --lavender: oklch(72% 0.15 293);
+  --sky: oklch(78% 0.12 225);
+  --success: oklch(68% 0.16 155);
+  --warning: oklch(78% 0.16 70);
+  --background: oklch(98.5% 0.006 290);
+  --foreground: oklch(20% 0.04 285);
+  --card: oklch(100% 0 0 / 0.7);
+  --card-foreground: oklch(20% 0.04 285);
+  --popover: oklch(100% 0 0);
+  --popover-foreground: oklch(20% 0.04 285);
+  --primary-foreground: oklch(99% 0 0);
+  --secondary: oklch(95% 0.02 290);
+  --secondary-foreground: oklch(30% 0.08 285);
+  --muted: oklch(95% 0.015 290);
+  --muted-foreground: oklch(50% 0.03 285);
+  --accent: oklch(94% 0.03 290);
+  --accent-foreground: oklch(30% 0.1 285);
+  --destructive: oklch(62% 0.22 22);
+  --destructive-foreground: oklch(99% 0 0);
+  --border: oklch(90% 0.02 290);
+  --input: oklch(90% 0.02 290);
+  --ring: oklch(56% 0.23 285);
+
+  --gradient-brand: linear-gradient(135deg, var(--primary), var(--lavender) 55%, var(--sky));
+  --gradient-mesh: radial-gradient(at 15% 10%, var(--primary) 0, transparent 50%), radial-gradient(at 85% 0%, var(--sky) 0, transparent 45%), radial-gradient(at 60% 90%, var(--lavender) 0, transparent 50%);
+}
+
+.dark {
+  --background: oklch(15% 0.03 285);
+  --foreground: oklch(96% 0.01 290);
+  --card: oklch(22% 0.04 285 / 0.6);
+  --card-foreground: oklch(96% 0.01 290);
+  --popover: oklch(20% 0.04 285);
+  --popover-foreground: oklch(96% 0.01 290);
+  --primary: oklch(62% 0.22 285);
+  --secondary: oklch(26% 0.04 285);
+  --secondary-foreground: oklch(96% 0.01 290);
+  --muted: oklch(25% 0.035 285);
+  --muted-foreground: oklch(70% 0.03 285);
+  --accent: oklch(28% 0.05 285);
+  --accent-foreground: oklch(96% 0.01 290);
+  --border: oklch(100% 0 0 / 0.1);
+  --input: oklch(100% 0 0 / 0.14);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  min-height: 100vh;
+}
+
+.text-brand {
+  background-image: var(--gradient-brand);
+  color: transparent !important;
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+.bg-brand {
+  background-image: var(--gradient-brand) !important;
+}
+
+.glass {
+  background: var(--card);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid var(--border);
+  box-shadow: 0 10px 40px -12px color-mix(in oklab, var(--primary) 25%, transparent);
+}
+
+.shadow-glow {
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--primary) 30%, transparent), 0 12px 40px -8px color-mix(in oklab, var(--primary) 45%, transparent) !important;
+}
+
+.severity-low {
+  background: color-mix(in oklab, var(--success) 15%, transparent) !important;
+  color: var(--success) !important;
+}
+
+.severity-medium {
+  background: color-mix(in oklab, var(--sky) 15%, transparent) !important;
+  color: var(--sky) !important;
+}
+
+.severity-high {
+  background: color-mix(in oklab, var(--warning) 20%, transparent) !important;
+  color: var(--warning) !important;
+}
+
+.severity-critical {
+  background: color-mix(in oklab, var(--destructive) 15%, transparent) !important;
+  color: var(--destructive) !important;
+}
