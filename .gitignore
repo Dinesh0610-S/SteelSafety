@@ -32,6 +32,8 @@ node_modules/
 dist/
 */dist/
 .next/
+.vite/
+*/.vite/
 
 # IDE / System
 .vscode/
